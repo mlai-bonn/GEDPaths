@@ -26,7 +26,8 @@ int main() {
     ged::GEDEnv<ged::LabelID, ged::LabelID, ged::LabelID> env;
     env.set_edit_costs(ged::Options::EditCosts::CONSTANT);
     initialize_env(env, graphs);
-    env.set_method(ged::Options::GEDMethod::F1);
+    env.set_method(ged::Options::GEDMethod::REFINE);
     env.init_method();
+    GraphData<GraphStruct> results = pairwise_path(env, graphs, 0, 1);
 
 }

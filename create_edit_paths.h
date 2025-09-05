@@ -65,7 +65,7 @@ inline void initialize_env(ged::GEDEnv<ged::LabelID, ged::LabelID, ged::LabelID>
 }
 
 
-GraphData<GraphStruct> pairwise_path(ged::GEDEnv<ged::LabelID, ged::LabelID, ged::LabelID>& env, GraphData<GraphStruct>& graph_data, const int source_id = 0, const int target_id = 1)
+inline GraphData<GraphStruct> pairwise_path(ged::GEDEnv<ged::LabelID, ged::LabelID, ged::LabelID>& env, GraphData<GraphStruct>& graph_data, const int source_id = 0, const int target_id = 1)
     {
         env.run_method(source_id,target_id);
         GEDResult result = result_from_env(env, graph_data, source_id, target_id);
@@ -97,6 +97,7 @@ GraphData<GraphStruct> pairwise_path(ged::GEDEnv<ged::LabelID, ged::LabelID, ged
         for (const auto& g : edit_path_graphs.graphData) {
             std::cout << g << std::endl;
         }
+    return edit_path_graphs;
 }
 
 
