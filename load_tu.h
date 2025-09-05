@@ -6,7 +6,7 @@
 #define GEDPATHS_LOAD_TU_H
 #include <string>
 
-inline bool load_tu( const std::string& dataset_name = "MUTAG", const std::string &input_path = "../Data/", const std::string &output_path = "../Data/ProcessedGraphs/")
+inline bool create_tu( const std::string& dataset_name = "MUTAG", const std::string &input_path = "../Data/", const std::string &output_path = "../Data/ProcessedGraphs/")
 {
 
     // check whether folder "../Data/" exists
@@ -60,20 +60,28 @@ inline bool load_tu( const std::string& dataset_name = "MUTAG", const std::strin
     // Save the graph as bgfs format
     graphs.Save(params);
 
+    return true;
+}
+
+inline GraphData<GraphStruct> load_tu(const std::string& dataset_name = "MUTAG", const std::string &output_path = "../Data/ProcessedGraphs/") {
     // Load the graph from the bgfs format
 
     GraphData<GraphStruct> loadedGraphs;
     std::string graph_path = output_path + dataset_name + ".bgfs";
-    loadedGraphs.Load(graph_path);
 
-    // print the loaded graphs
-    for ( auto &x : loadedGraphs.graphData) {
-        std::cout << x << std::endl;
+    if (!std::filesystem::exists(graph_path)) {
+        std::cout << "Graph " << dataset_name << " does not exist" << std::endl;
     }
-
-    std::cout << "Successfully loaded the " << dataset_name << " graphs from TUDataset" << std::endl;
-
-    return true;
+    else {
+        loadedGraphs.Load(graph_path);
+        // print the loaded graphs
+        for ( auto &x : loadedGraphs.graphData) {
+            std::cout << x << std::endl;
+        }
+        std::cout << "Successfully loaded the " << dataset_name << " graphs from TUDataset" << std::endl;
+    }
+    return loadedGraphs;
 }
+
 
 #endif //GEDPATHS_LOAD_TU_H
