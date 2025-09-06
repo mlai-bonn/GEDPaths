@@ -21,7 +21,10 @@ int main() {
     auto databases = {"MUTAG", "NCI1"};
     const std::string input_path = "../Data/";
     const std::string output_path = "../Data/ProcessedGraphs/";
-    create_tu("MUTAG", input_path, output_path);
+    if (bool success = create_tu("MUTAG", input_path, output_path); !success) {
+        std::cout << "Failed to create TU dataset" << std::endl;
+        return 1;
+    }
     GraphData<GraphStruct> graphs = load_tu("MUTAG", output_path);
     ged::GEDEnv<ged::LabelID, ged::LabelID, ged::LabelID> env;
     env.set_edit_costs(ged::Options::EditCosts::CONSTANT);

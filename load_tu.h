@@ -9,8 +9,9 @@
 inline bool create_tu( const std::string& dataset_name = "MUTAG", const std::string &input_path = "../Data/", const std::string &output_path = "../Data/ProcessedGraphs/")
 {
 
-    // check whether folder "../Data/" exists
-    if (!std::filesystem::exists(input_path)) {
+    // check whether folder "../Data/dataset_name" exsits or is in Processed
+    if (!std::filesystem::exists(input_path + dataset_name + "/") && !std::filesystem::is_directory(output_path + dataset_name))
+    {
         std::cout << "Folder " << input_path << " does not exist" << std::endl;
         // Please create it and download the data dataset_name from link
         std::cout << "Please download the dataset from https://chrsmrrs.github.io/datasets/docs/datasets/" << std::endl;
