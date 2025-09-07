@@ -21,16 +21,27 @@ int main() {
     auto databases = {"MUTAG", "NCI1"};
     const std::string input_path = "../Data/";
     const std::string output_path = "../Data/ProcessedGraphs/";
+    const std::string edit_path_output = "../Data/EditPaths/";
+    // create output directory if it does not exist
+    if (!std::filesystem::exists(edit_path_output)) {
+        std::filesystem::create_directory(edit_path_output);
+    }
+
+
     if (bool success = create_tu("MUTAG", input_path, output_path); !success) {
         std::cout << "Failed to create TU dataset" << std::endl;
         return 1;
     }
     GraphData<GraphStruct> graphs = load_tu("MUTAG", output_path);
+    graphs.SetName("MUTAG");
     ged::GEDEnv<ged::LabelID, ged::LabelID, ged::LabelID> env;
     env.set_edit_costs(ged::Options::EditCosts::CONSTANT);
     initialize_env(env, graphs);
     env.set_method(ged::Options::GEDMethod::REFINE);
     env.init_method();
-    GraphData<GraphStruct> results = pairwise_path(env, graphs, 0, 1);
-
+    compute_all_pairwise_paths(env, graphs, edit_path_output);
+    // Load MUTAG edit paths
+    GraphData<GraphStruct> edit_paths;
+    edit_paths.Load(edit_path_output + "MUTAG_edit_paths.bgf");
+    return 0;
 }
