@@ -81,6 +81,7 @@ inline GraphData<GraphStruct> load_tu(const std::string& dataset_name = "MUTAG",
         }
         std::cout << "Successfully loaded the " << dataset_name << " graphs from TUDataset" << std::endl;
     }
+    loadedGraphs.SetName(dataset_name);
     return loadedGraphs;
 }
 

@@ -9,8 +9,8 @@
 #include "GraphDataStructures/GraphBase.h"
 #include "src/env/ged_env.hpp"
 #include <LoadSave.h>
-#include "create_edit_paths.h"
 #include "load_tu.h"
+#include "Algorithms/GED/GEDLIBWrapper.h"
 
 
 int main() {
@@ -34,13 +34,9 @@ int main() {
         return 1;
     }
     GraphData<GraphStruct> graphs = load_tu("MUTAG", output_path);
-    graphs.SetName("MUTAG");
     ged::GEDEnv<ged::LabelID, ged::LabelID, ged::LabelID> env;
-    env.set_edit_costs(ged::Options::EditCosts::CONSTANT);
-    initialize_env(env, graphs);
-    env.set_method(ged::Options::GEDMethod::REFINE);
-    env.init_method();
-    EvaluateGEDResults(env, graphs, mapping_path_output);
+    InitializeGEDEnvironment(env, graphs,ged::Options::EditCosts::CONSTANT, ged::Options::GEDMethod::REFINE);
+    ComputeGEDResults(env, graphs, mapping_path_output);
     // load mappings
     std::vector<GEDEvaluation> results;
     BinaryToGEDResult(mapping_path_output + "MUTAG_ged_mapping.bin", graphs, results);
