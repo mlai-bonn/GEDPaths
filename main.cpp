@@ -35,7 +35,7 @@ int main() {
     }
     GraphData<GraphStruct> graphs = load_tu("MUTAG", output_path);
     ged::GEDEnv<ged::LabelID, ged::LabelID, ged::LabelID> env;
-    InitializeGEDEnvironment(env, graphs,ged::Options::EditCosts::CONSTANT, ged::Options::GEDMethod::REFINE);
+    InitializeGEDEnvironment(env, graphs,ged::Options::EditCosts::CONSTANT, ged::Options::GEDMethod::F2);
     ComputeGEDResults(env, graphs, mapping_path_output);
     // load mappings
     std::vector<GEDEvaluation> results;
@@ -43,6 +43,9 @@ int main() {
     CreateAllEditPaths(results, graphs,  edit_path_output);
     // Load MUTAG edit paths
     GraphData<GraphStruct> edit_paths;
+    std::vector<std::tuple<INDEX, INDEX, INDEX>> edit_path_info;
     edit_paths.Load(edit_path_output + "MUTAG_edit_paths.bgf");
+    std::string info_path = edit_path_output + "MUTAG_edit_paths_info.bin";
+    ReadEditPathInfo(info_path, edit_path_info);
     return 0;
 }
