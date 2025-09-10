@@ -19,16 +19,14 @@ if (NOT GUROBI_FOUND)
 endif()
 
 
-set(GEDLIB_ROOT ../libs/libGraph/external/gedlib)
-set(LIBGRAPH_ROOT ../libs/libGraph/include)
+set(GEDLIB_ROOT ../libGraph/external/gedlib)
+set(LIBGRAPH_ROOT ../libGraph/include)
 
 
 include_directories(${LIBGRAPH_ROOT} ${GEDLIB_ROOT} ${GEDLIB_ROOT}/ext/boost.1.89.0 ${GEDLIB_ROOT}/ext/eigen.3.3.4/Eigen ${GEDLIB_ROOT}/ext/nomad.3.8.1/src ${GEDLIB_ROOT}/ext/nomad.3.8.1/ext/sgtelib/src ${GEDLIB_ROOT}/ext/lsape.5/cpp/include ${GEDLIB_ROOT}/ext/libsvm.3.22 ${GEDLIB_ROOT}/ext/fann.2.2.0/include ${GUROBI_HOME}/include)
 link_directories(${LIBGRAPH_ROOT} ${GEDLIB_ROOT}/ext/nomad.3.8.1/lib ${GEDLIB_ROOT}/ext/libsvm.3.22 ${GEDLIB_ROOT}/ext/fann.2.2.0/lib)
 
 # adding the Google_Tests_run target
-add_executable(GEDPaths main.cpp ${LIBGRAPH_ROOT}/libGraph.h ${GEDLIB_ROOT}/src/env/ged_env.hpp
-        load_tu.h
-        create_edit_paths.h)
+add_executable(GEDPaths main.cpp ${LIBGRAPH_ROOT}/libGraph.h ${GEDLIB_ROOT}/src/env/ged_env.hpp)
 
 target_link_libraries(GEDPaths libsvm.so libnomad.so libdoublefann.so.2 gurobi)
