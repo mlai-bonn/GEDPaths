@@ -9,7 +9,6 @@
 #include "GraphDataStructures/GraphBase.h"
 #include "src/env/ged_env.hpp"
 #include <LoadSave.h>
-#include "load_tu.h"
 #include "Algorithms/GED/GEDLIBWrapper.h"
 #include "Algorithms/GED/GEDFunctions.h"
 
@@ -34,7 +33,8 @@ int main() {
         std::cout << "Failed to create TU dataset" << std::endl;
         return 1;
     }
-    GraphData<GraphStruct> graphs = LoadSave::LoadPreprocessedTUDortmundGraphData("MUTAG", output_path);
+    GraphData<DDataGraph> graphs;
+    LoadSave::LoadPreprocessedTUDortmundGraphData("MUTAG", output_path, graphs);
     // set omp number of threads to max threads of this machine
     int num_threads_used = 4;
     int x = omp_get_num_threads();
@@ -61,7 +61,7 @@ int main() {
     }
     MergeGEDResults(mapping_path_output, graphs);
     // load mappings
-    std::vector<GEDEvaluation> results;
+    std::vector<GEDEvaluation<DDataGraph>> results;
     BinaryToGEDResult(mapping_path_output + "MUTAG_ged_mapping.bin", graphs, results);
     CreateAllEditPaths(results, graphs,  edit_path_output);
     // Load MUTAG edit paths
