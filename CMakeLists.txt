@@ -18,15 +18,21 @@ if (NOT GUROBI_FOUND)
     message(FATAL_ERROR "Could not find GUROBI library. Please set GUROBI_HOME environment variable.")
 endif()
 
+# find the libGraph folder
+# set LIBGRAPH_ROOT to ../libGraph
+# set GEDLIB_ROOT to ${LIBGRAPH_ROOT}/external/gedlib
 
-set(GEDLIB_ROOT ../libGraph/external/gedlib)
-set(LIBGRAPH_ROOT ../libGraph/include)
 
 
-include_directories(${LIBGRAPH_ROOT} ${GEDLIB_ROOT} ${GEDLIB_ROOT}/ext/boost.1.89.0 ${GEDLIB_ROOT}/ext/eigen.3.3.4/Eigen ${GEDLIB_ROOT}/ext/nomad.3.8.1/src ${GEDLIB_ROOT}/ext/nomad.3.8.1/ext/sgtelib/src ${GEDLIB_ROOT}/ext/lsape.5/cpp/include ${GEDLIB_ROOT}/ext/libsvm.3.22 ${GEDLIB_ROOT}/ext/fann.2.2.0/include ${GUROBI_HOME}/include)
-link_directories(${LIBGRAPH_ROOT} ${GEDLIB_ROOT}/ext/nomad.3.8.1/lib ${GEDLIB_ROOT}/ext/libsvm.3.22 ${GEDLIB_ROOT}/ext/fann.2.2.0/lib)
+
+set(LIBGRAPH_ROOT ../libGraph)
+set(GEDLIB_ROOT ${LIBGRAPH_ROOT}/external/gedlib)
+
+
+include_directories(${LIBGRAPH_ROOT}/include ${GEDLIB_ROOT} ${GEDLIB_ROOT}/ext/boost.1.89.0 ${GEDLIB_ROOT}/ext/eigen.3.3.4/Eigen ${GEDLIB_ROOT}/ext/nomad.3.8.1/src ${GEDLIB_ROOT}/ext/nomad.3.8.1/ext/sgtelib/src ${GEDLIB_ROOT}/ext/lsape.5/cpp/include ${GEDLIB_ROOT}/ext/libsvm.3.22 ${GEDLIB_ROOT}/ext/fann.2.2.0/include ${GUROBI_HOME}/include)
+link_directories(${LIBGRAPH_ROOT}/include ${GEDLIB_ROOT}/ext/nomad.3.8.1/lib ${GEDLIB_ROOT}/ext/libsvm.3.22 ${GEDLIB_ROOT}/ext/fann.2.2.0/lib)
 
 # adding the Google_Tests_run target
-add_executable(GEDPaths main.cpp ${LIBGRAPH_ROOT}/libGraph.h ${GEDLIB_ROOT}/src/env/ged_env.hpp)
+add_executable(GEDPaths main.cpp ${LIBGRAPH_ROOT}/include/libGraph.h ${GEDLIB_ROOT}/src/env/ged_env.hpp)
 
 target_link_libraries(GEDPaths libsvm.so libnomad.so libdoublefann.so.2 gurobi)

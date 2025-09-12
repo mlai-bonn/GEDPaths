@@ -36,19 +36,19 @@ int main() {
     GraphData<DDataGraph> graphs;
     LoadSave::LoadPreprocessedTUDortmundGraphData("MUTAG", output_path, graphs);
     // set omp number of threads to max threads of this machine
-    int num_threads_used = 4;
+    int num_threads_used = 30;
     int x = omp_get_num_threads();
-    int chunk_size = min(30, (int)graphs.graphData.size()/num_threads_used);
+    const int chunk_size = std::min(100, static_cast<int>(graphs.graphData.size() * graphs.graphData.size() - 1)/(2*num_threads_used));
     std::vector<std::pair<INDEX, INDEX>> graph_ids;
     for (auto i = 0; i < graphs.graphData.size(); ++i) {
         for ( auto j = i + 1; j < graphs.graphData.size(); ++j) {
-            graph_ids.emplace_back(std::make_pair(i,j));
+            graph_ids.emplace_back(i,j);
         }
     }
     std::vector<std::vector<std::pair<INDEX, INDEX>>> graph_id_chunks;
     // split graph ids into chunks of size chunk_size
     for (int i = 0; i < graph_ids.size(); i += chunk_size) {
-        graph_id_chunks.push_back(std::vector<std::pair<INDEX, INDEX>>(graph_ids.begin() + i, graph_ids.begin() + min(i + chunk_size, (int)graph_ids.size())));
+        graph_id_chunks.emplace_back(graph_ids.begin() + i, graph_ids.begin() + min(i + chunk_size, (int)graph_ids.size()));
     }
 
 
