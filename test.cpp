@@ -29,11 +29,11 @@ int main() {
     }
 
 
-    if (bool success = LoadSave::PreprocessTUDortmundGraphData("MUTAG", input_path, output_path); !success) {
+    if (const bool success = LoadSave::PreprocessTUDortmundGraphData("MUTAG", input_path, output_path); !success) {
         std::cout << "Failed to create TU dataset" << std::endl;
         return 1;
     }
-    GraphData<DDataGraph> graphs;
+    GraphData<UDataGraph> graphs;
     LoadSave::LoadPreprocessedTUDortmundGraphData("MUTAG", output_path, graphs);
 
     // For test take only graphs 0,1
@@ -46,12 +46,12 @@ int main() {
     std::string search_string = "_ged_mapping";
     MergeGEDResults(mapping_path_output, search_string, graphs);
     // load mappings
-    std::vector<GEDEvaluation<DDataGraph>> results;
+    std::vector<GEDEvaluation<UDataGraph>> results;
     BinaryToGEDResult(mapping_path_output + "MUTAG_ged_mapping.bin", graphs, results);
     CSVFromGEDResults(mapping_path_output + "MUTAG_ged_mapping.csv", results);
     CreateAllEditPaths(results, graphs,  edit_path_output);
     // Load MUTAG edit paths
-    GraphData<GraphStruct> edit_paths;
+    GraphData<UDataGraph> edit_paths;
     std::vector<std::tuple<INDEX, INDEX, INDEX>> edit_path_info;
     edit_paths.Load(edit_path_output + "MUTAG_edit_paths.bgf");
     std::string info_path = edit_path_output + "MUTAG_edit_paths_info.bin";
