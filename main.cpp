@@ -8,7 +8,8 @@
 #include <vector>
 #include "GraphDataStructures/GraphBase.h"
 #include "src/env/ged_env.hpp"
-#include <LoadSave.h>
+#include <LoadSaveGraphDatasets.h>
+
 #include "Algorithms/GED/GEDLIBWrapper.h"
 #include "Algorithms/GED/GEDFunctions.h"
 
@@ -29,12 +30,12 @@ int main() {
     }
 
 
-    if (bool success = LoadSave::PreprocessTUDortmundGraphData("MUTAG", input_path, output_path); !success) {
+    if (bool success = LoadSaveGraphDatasets::PreprocessTUDortmundGraphData("MUTAG", input_path, output_path); !success) {
         std::cout << "Failed to create TU dataset" << std::endl;
         return 1;
     }
     GraphData<UDataGraph> graphs;
-    LoadSave::LoadPreprocessedTUDortmundGraphData("MUTAG", output_path, graphs);
+    LoadSaveGraphDatasets::LoadPreprocessedTUDortmundGraphData("MUTAG", output_path, graphs);
     // set omp number of threads to max threads of this machine
     int num_threads_used = 30;
     int x = omp_get_num_threads();
@@ -45,6 +46,8 @@ int main() {
             graph_ids.emplace_back(i,j);
         }
     }
+    // shuffle the graph ids
+    ranges::shuffle(graph_ids, std::mt19937{std::random_device{}()});
     std::vector<std::vector<std::pair<INDEX, INDEX>>> graph_id_chunks;
     // split graph ids into chunks of size chunk_size
     for (int i = 0; i < graph_ids.size(); i += chunk_size) {
@@ -56,7 +59,7 @@ int main() {
 #pragma omp parallel for schedule(dynamic) shared(graphs, graph_id_chunks, mapping_path_output) default(none) num_threads(num_threads_used)
     for (const auto & graph_id_chunk : graph_id_chunks) {
         ged::GEDEnv<ged::LabelID, ged::LabelID, ged::LabelID> env;
-        InitializeGEDEnvironment(env, graphs, ged::Options::EditCosts::CONSTANT, ged::Options::GEDMethod::F2);
+        InitializeGEDEnvironment(env, graphs, ged::Options::EditCosts::CONSTANT, ged::Options::GEDMethod::F1);
         ComputeGEDResults(env, graphs, graph_id_chunk, mapping_path_output);
     }
     std::string search_string = "_ged_mapping";
