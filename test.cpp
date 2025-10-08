@@ -64,6 +64,6 @@ int main(int argc, const char * argv[]) {
     std::string info_path = edit_path_output + "MUTAG_edit_paths_info.bin";
     ReadEditPathInfo(info_path, edit_path_info);
     // delete all files in the test folder
-    std::filesystem::remove_all(edit_path_output);
+    //std::filesystem::remove_all(edit_path_output);
     return 0;
 }
