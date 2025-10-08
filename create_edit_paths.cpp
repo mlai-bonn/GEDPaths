@@ -20,11 +20,6 @@ int main(int argc, const char * argv[]) {
     // -t arguments for the threads to use
     int num_threads = 1;
 
-    // -graph_ids
-    std::string graph_ids_arg = "all";
-    graph_ids_arg = "../Data/graph_ids.txt";
-    std::vector<std::pair<INDEX, INDEX>> graph_ids;
-
     for (int i = 1; i < argc; ++i) {
         if (std::string(argv[i]) == "-db") {
             db = argv[i+1];
