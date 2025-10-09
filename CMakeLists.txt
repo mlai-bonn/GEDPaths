@@ -29,7 +29,7 @@ set(LIBGRAPH_ROOT ../libGraph)
 set(GEDLIB_ROOT ${LIBGRAPH_ROOT}/external/gedlib)
 
 
-include_directories(${LIBGRAPH_ROOT}/include ${GEDLIB_ROOT} ${GEDLIB_ROOT}/ext/boost.1.89.0 ${GEDLIB_ROOT}/ext/eigen-3.4.0/Eigen ${GEDLIB_ROOT}/ext/nomad.3.8.1/src ${GEDLIB_ROOT}/ext/nomad.3.8.1/ext/sgtelib/src ${GEDLIB_ROOT}/ext/lsape.5/cpp/include ${GEDLIB_ROOT}/ext/libsvm.3.22 ${GEDLIB_ROOT}/ext/fann.2.2.0/include ${GUROBI_HOME}/include)
+include_directories(${LIBGRAPH_ROOT}/include ${GEDLIB_ROOT} ${GEDLIB_ROOT}/ext/boost ${GEDLIB_ROOT}/ext/eigen/Eigen ${GEDLIB_ROOT}/ext/nomad.3.8.1/src ${GEDLIB_ROOT}/ext/nomad.3.8.1/ext/sgtelib/src ${GEDLIB_ROOT}/ext/lsape.5/cpp/include ${GEDLIB_ROOT}/ext/libsvm.3.22 ${GEDLIB_ROOT}/ext/fann.2.2.0/include ${GUROBI_HOME}/include)
 link_directories(${LIBGRAPH_ROOT}/include ${GEDLIB_ROOT}/ext/nomad.3.8.1/lib ${GEDLIB_ROOT}/ext/libsvm.3.22 ${GEDLIB_ROOT}/ext/fann.2.2.0/lib)
 
 # adding the Google_Tests_run target

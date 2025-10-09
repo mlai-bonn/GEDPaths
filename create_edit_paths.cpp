@@ -55,7 +55,7 @@ int main(int argc, const char * argv[]) {
     CreateAllEditPaths(results, graphs,  edit_path_output);
     // Load MUTAG edit paths
     GraphData<UDataGraph> edit_paths;
-    std::vector<std::tuple<INDEX, INDEX, INDEX>> edit_path_info;
+    std::vector<std::tuple<INDEX, INDEX, INDEX, EditOperation>> edit_path_info;
     edit_paths.Load(edit_path_output + "MUTAG_edit_paths.bgf");
     std::string info_path = edit_path_output + "MUTAG_edit_paths_info.bin";
     ReadEditPathInfo(info_path, edit_path_info);
