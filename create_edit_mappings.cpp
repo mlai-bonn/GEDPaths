@@ -22,9 +22,9 @@ int main(int argc, const char * argv[]) {
     // -processed argument for the processed data path
     std::string processed_graph_path = "../Data/ProcessedGraphs/";
     // -mappings argument for the path to store the mappings
-    std::string output_path = "../Data/Results/";
+    std::string output_path = "../Data/Results/Mappings/";
     // -t arguments for the threads to use
-    int num_threads = 30;
+    int num_threads = 4;
     // -method
     auto method = "REFINE";
     auto ged_method = GEDMethodFromString(method);
@@ -144,8 +144,8 @@ int main(int argc, const char * argv[]) {
                 // id2 should between id1 + 1 and graphs.graphData.size() - 1
                 INDEX id2 = gen() % graphs.graphData.size();
                 if (id1 != id2) {
-                    auto pair = std::minmax(id1, id2);
-                    if (std::find(graph_ids.begin(), graph_ids.end(), pair) == graph_ids.end()) {
+                    std::pair<INDEX, INDEX> pair = std::minmax(id1, id2);
+                    if (ranges::find(graph_ids, pair) == graph_ids.end()) {
                         graph_ids.emplace_back(pair);
                     }
                 }

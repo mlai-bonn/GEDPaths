@@ -6,17 +6,31 @@
 #include "LoadSaveGraphDatasets.h"
 #include "Algorithms/GED/GEDLIBWrapper.h"
 #include "Algorithms/GED/GEDFunctions.h"
+bool CheckResultsValidity(const std::vector<GEDEvaluation<UDataGraph>>& results) {
+
+    for (auto& result : results) {
+        const auto&[fst, snd] = result.node_mapping;
+        // check whether one or the other has no duplicates
+        std::set<NodeId> first_set = {fst.begin(), fst.end()};
+        std::set<NodeId> second_set = {snd.begin(), snd.end()};
+        if (first_set.size() != fst.size() && second_set.size() != snd.size()) {
+            std::cerr << "Error: Mapping has duplicates for graphs " << result.graph_ids.first << " and " << result.graph_ids.second << std::endl;
+            return false;
+        }
+    }
+    return true;
+}
 
 // source_id and target_id as args
 int main(int argc, const char * argv[]) {
     // -db argument for the database
     std::string db = "MUTAG";
     // -processed argument for the processed data path
-    std::string output_path = "../Data/ProcessedGraphs/";
+    std::string processed_graph_path = "../Data/ProcessedGraphs/";
     // -mappings argument for loading the mappings
-    std::string mappings_path = "../Data/Results/";
+    std::string mappings_path = "../Data/Results/Mappings/REFINE/MUTAG/";
     // -method
-    std::string method = "F1";
+    std::string method = "REFINE";
     // -edit_paths argument for the path to store the edit paths
     std::string edit_path_output = "../Data/Results/Paths/";
     // -t arguments for the threads to use
@@ -27,7 +41,7 @@ int main(int argc, const char * argv[]) {
             db = argv[i+1];
         }
         else if (std::string(argv[i]) == "-processed") {
-            output_path = argv[i+1];
+            processed_graph_path = argv[i+1];
         }
         else if (std::string(argv[i]) == "-mappings") {
             mappings_path = argv[i+1];
@@ -46,21 +60,24 @@ int main(int argc, const char * argv[]) {
         }
 
     }
-    mappings_path = mappings_path + "/" + method + "/" + db + "/";
+    std::string edit_path_output_db = edit_path_output + method + "/" + db + "/";
+    if (!std::filesystem::exists(edit_path_output)) {
+        std::filesystem::create_directory(edit_path_output);
+    }
+    if (!std::filesystem::exists(edit_path_output_db)) {
+        std::filesystem::create_directories(edit_path_output_db);
+    }
 
     GraphData<UDataGraph> graphs;
-    LoadSaveGraphDatasets::LoadPreprocessedTUDortmundGraphData(db, output_path, graphs);
+    LoadSaveGraphDatasets::LoadPreprocessedTUDortmundGraphData(db, processed_graph_path, graphs);
 
 
     // load mappings
     std::vector<GEDEvaluation<UDataGraph>> results;
-    BinaryToGEDResult(mappings_path + "MUTAG_ged_mapping.bin", graphs, results);
-    CreateAllEditPaths(results, graphs,  edit_path_output);
-    // Load MUTAG edit paths
-    GraphData<UDataGraph> edit_paths;
-    std::vector<std::tuple<INDEX, INDEX, INDEX, EditOperation>> edit_path_info;
-    edit_paths.Load(edit_path_output + "MUTAG_edit_paths.bgf");
-    std::string info_path = edit_path_output + "MUTAG_edit_paths_info.bin";
-    ReadEditPathInfo(info_path, edit_path_info);
+    BinaryToGEDResult(mappings_path + db + "_ged_mapping.bin", graphs, results);
+    CheckResultsValidity(results);
+    CreateAllEditPaths(results, graphs,  edit_path_output_db);
+
     return 0;
 }
+
