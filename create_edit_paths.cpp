@@ -13,10 +13,12 @@ int main(int argc, const char * argv[]) {
     std::string db = "MUTAG";
     // -processed argument for the processed data path
     std::string output_path = "../Data/ProcessedGraphs/";
-    // -mappings argument for the path to store the mappings
-    std::string mappings_path = "../Data/Mappings/";
+    // -mappings argument for loading the mappings
+    std::string mappings_path = "../Data/Results/";
+    // -method
+    std::string method = "F1";
     // -edit_paths argument for the path to store the edit paths
-    std::string edit_path_output = "../Data/EditPaths/";
+    std::string edit_path_output = "../Data/Results/Paths/";
     // -t arguments for the threads to use
     int num_threads = 1;
 
@@ -44,6 +46,7 @@ int main(int argc, const char * argv[]) {
         }
 
     }
+    mappings_path = mappings_path + "/" + method + "/" + db + "/";
 
     GraphData<UDataGraph> graphs;
     LoadSaveGraphDatasets::LoadPreprocessedTUDortmundGraphData(db, output_path, graphs);

@@ -38,8 +38,8 @@ int main(int argc, const char * argv[]) {
     LoadSaveGraphDatasets::LoadPreprocessedTUDortmundGraphData("MUTAG", output_path, graphs);
 
     // For test take only graphs 0,1
-    int source_id = 0;
-    int target_id = 1;
+    int source_id = 30;
+    int target_id = 46;
     if (argc == 3) {
         source_id = std::stoi(argv[1]);
         target_id = std::stoi(argv[2]);
@@ -59,7 +59,7 @@ int main(int argc, const char * argv[]) {
     CreateAllEditPaths(results, graphs,  edit_path_output, true);
     // Load MUTAG edit paths
     GraphData<UDataGraph> edit_paths;
-    std::vector<std::tuple<INDEX, INDEX, INDEX>> edit_path_info;
+    std::vector<std::tuple<INDEX, INDEX, INDEX, EditOperation>> edit_path_info;
     edit_paths.Load(edit_path_output + "MUTAG_edit_paths.bgf");
     std::string info_path = edit_path_output + "MUTAG_edit_paths_info.bin";
     ReadEditPathInfo(info_path, edit_path_info);
