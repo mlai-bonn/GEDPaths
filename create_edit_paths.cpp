@@ -2,9 +2,7 @@
 #include <iostream>
 #include <vector>
 #include "GraphDataStructures/GraphBase.h"
-#include <LoadSave.h>
 #include "LoadSaveGraphDatasets.h"
-#include "Algorithms/GED/GEDLIBWrapper.h"
 #include "Algorithms/GED/GEDFunctions.h"
 bool CheckResultsValidity(const std::vector<GEDEvaluation<UDataGraph>>& results) {
 
@@ -33,6 +31,8 @@ int main(int argc, const char * argv[]) {
     std::string edit_path_output = "../Results/Paths/";
     // -t arguments for the threads to use
     int num_threads = 1;
+    // -method
+    auto method = "REFINE";
 
     for (int i = 1; i < argc; ++i) {
         if (std::string(argv[i]) == "-db") {
@@ -43,6 +43,9 @@ int main(int argc, const char * argv[]) {
         }
         else if (std::string(argv[i]) == "-mappings") {
             mappings_path = argv[i+1];
+        }
+        else if (std::string(argv[i]) == "-method") {
+            method = argv[i+1];
         }
         else if (std::string(argv[i]) == "-t") {
             num_threads = std::stoi(argv[i+1]);
