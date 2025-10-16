@@ -28,11 +28,9 @@ int main(int argc, const char * argv[]) {
     // -processed argument for the processed data path
     std::string processed_graph_path = "../Data/ProcessedGraphs/";
     // -mappings argument for loading the mappings
-    std::string mappings_path = "../Data/Results/Mappings/REFINE/MUTAG/";
-    // -method
-    std::string method = "REFINE";
+    std::string mappings_path = "../Results/Mappings/REFINE/MUTAG/";
     // -edit_paths argument for the path to store the edit paths
-    std::string edit_path_output = "../Data/Results/Paths/";
+    std::string edit_path_output = "../Results/Paths/";
     // -t arguments for the threads to use
     int num_threads = 1;
 
@@ -80,4 +78,3 @@ int main(int argc, const char * argv[]) {
 
     return 0;
 }
-

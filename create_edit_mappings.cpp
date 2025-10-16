@@ -22,7 +22,7 @@ int main(int argc, const char * argv[]) {
     // -processed argument for the processed data path
     std::string processed_graph_path = "../Data/ProcessedGraphs/";
     // -mappings argument for the path to store the mappings
-    std::string output_path = "../Data/Results/Mappings/";
+    std::string output_path = "../Results/Mappings/";
     // -t arguments for the threads to use
     int num_threads = 4;
     // -method
