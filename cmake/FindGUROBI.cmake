@@ -1,3 +1,5 @@
+message("$ENV{GUROBI_HOME}")
+message("${GUROBI_DIR}")
 find_library(
         GUROBI_LIBRARY
         NAMES gurobi gurobi81 gurobi90 gurobi95 gurobi100 gurobi110 gurobi120 gurobi1203 gurobi12

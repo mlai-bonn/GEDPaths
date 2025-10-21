@@ -5,7 +5,7 @@ Repo that builds up on the libgraph and uses the GEDLIB to create edit paths bet
 [Instruction](INSTALLATION.md) to install all dependencies and the repo.
 
 ## Usage
-### Compute mappings 
+### Compute mappings
 1. Download a Dataset from [TUDortmund](https://chrsmrrs.github.io/datasets/) or use your own graphs in the same format into the [Data](Data) folder.
 2. Build the project:
    ```bash
@@ -61,3 +61,4 @@ Repo that builds up on the libgraph and uses the GEDLIB to create edit paths bet
      - `-t <threads>`: Number of threads
 
 ### Export to Pytorch Geometric Format
+
