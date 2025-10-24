@@ -219,14 +219,39 @@ int main(int argc, const char * argv[]) {
     std::string db = "MUTAG";
     // -processed argument for the processed data path
     std::string processed_graph_path = "../Data/ProcessedGraphs/";
-    // -edit_paths argument for the path to store the edit paths
-    const std::string edit_path_output = "../Data/Results/Paths/REFINE/MUTAG/";
+    // -edit_paths base argument for the path to store the edit paths
+    std::string edit_path_output = "../Results/Paths/";
+    // -method (default REFINE)
+    std::string method = "REFINE";
+
+    for (int i = 1; i < argc - 1; ++i) {
+        if (std::string(argv[i]) == "-db") {
+            db = argv[i+1];
+        }
+        else if (std::string(argv[i]) == "-processed") {
+            processed_graph_path = argv[i+1];
+        }
+        else if (std::string(argv[i]) == "-method") {
+            method = argv[i+1];
+        }
+        // add help
+        else if (std::string(argv[i]) == "-help") {
+            // TODO
+             return 0;
+        }
+        else {
+            std::cout << "Unknown argument: " << argv[i] << std::endl;
+            return 1;
+        }
+
+    }
+    std::string edit_path_output_db = edit_path_output + method + "/" + db + "/";
 
     // Load MUTAG edit paths
     GraphData<UDataGraph> edit_paths;
     std::vector<std::tuple<INDEX, INDEX, INDEX, EditOperation>> edit_path_info;
-    edit_paths.Load(edit_path_output + "MUTAG_edit_paths.bgf");
-    std::string info_path = edit_path_output + "MUTAG_edit_paths_info.bin";
+    edit_paths.Load(edit_path_output_db + db + "_edit_paths.bgf");
+    std::string info_path = edit_path_output_db + db + "_edit_paths_info.bin";
     ReadEditPathInfo(info_path, edit_path_info);
     EditPathStatistics stats(edit_paths, edit_path_info);
     stats.PrintStatistics();

@@ -24,7 +24,7 @@ int main(int argc, const char * argv[]) {
     // -mappings argument for the path to store the mappings
     std::string output_path = "../Results/Mappings/";
     // -t arguments for the threads to use
-    int num_threads = 4;
+    int num_threads = 30;
     // -method
     auto method = "REFINE";
     auto ged_method = GEDMethodFromString(method);
@@ -40,7 +40,7 @@ int main(int argc, const char * argv[]) {
     std::vector<std::pair<INDEX, INDEX>> graph_ids;
 
 
-    for (int i = 1; i < argc; ++i) {
+    for (int i = 1; i < argc - 1; ++i) {
         if (std::string(argv[i]) == "-db") {
             db = argv[i+1];
         }
