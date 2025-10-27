@@ -228,3 +228,86 @@ class BGFInMemoryDataset(InMemoryDataset):
         data, slices = self.collate(data_list)
         os.makedirs(self.processed_dir, exist_ok=True)
         torch.save((data, slices), self.processed_paths[0])
+
+
+def load_pt_to_pyg_data_list(path: str):
+    """Load a .pt file and return a Python list of torch_geometric.data.Data objects.
+
+    Supports files saved as a plain Python list of Data objects or the (data, slices)
+    tuple that torch_geometric.InMemoryDataset saves. Uses torch.load with
+    weights_only=False and registers torch_geometric.data.data.Data as a safe
+    global so unpickling succeeds with PyTorch >=2.6 safe loading.
+    """
+    if not os.path.isfile(path):
+        raise FileNotFoundError(path)
+
+    # allow Data during unpickling if possible
+    try:
+        import torch
+        if hasattr(torch.serialization, 'add_safe_globals'):
+            try:
+                import torch_geometric.data.data as _tg_data
+                torch.serialization.add_safe_globals([_tg_data.Data])
+            except Exception:
+                # ignore if torch_geometric not available or add_safe_globals fails
+                pass
+    except Exception:
+        pass
+
+    # load with weights_only=False when available
+    try:
+        data = torch.load(path, weights_only=False)
+    except TypeError:
+        data = torch.load(path)
+
+    # If user saved a simple list of Data objects
+    if isinstance(data, list):
+        return data
+
+    # If it's a (data, slices) tuple (what InMemoryDataset.save creates)
+    if isinstance(data, tuple) and len(data) == 2:
+        big_data, slices = data
+        try:
+            # Try to reconstruct list from (data, slices) using torch_geometric utilities
+            from torch_geometric.data import InMemoryDataset
+            # Create a minimal ephemeral dataset to hold and recover objects.
+            class _TempDataset(InMemoryDataset):
+                def __init__(self, root='.', data_tuple=None):
+                    self._data_tuple = data_tuple
+                    super().__init__(root)
+                @property
+                def raw_file_names(self):
+                    return []
+                @property
+                def processed_file_names(self):
+                    return []
+                def download(self):
+                    pass
+                def process(self):
+                    pass
+            tmp = _TempDataset(data_tuple=(big_data, slices))
+            # monkey-patch the stored attributes
+            tmp.data = big_data
+            tmp.slices = slices
+            # try to recover all items by calling len and indexing
+            items = []
+            try:
+                length = len(slices.get(next(iter(slices.keys())))) if isinstance(slices, dict) and slices else 0
+            except Exception:
+                length = 0
+            # fallback: if we cannot determine length, return the big_data as single element
+            if length <= 0:
+                return [big_data]
+            for i in range(length):
+                try:
+                    items.append(tmp.get(i))
+                except Exception:
+                    # if get fails, abort and return the raw big_data
+                    return [big_data]
+            return items
+        except Exception:
+            # if torch_geometric not available or reconstruction fails, return raw big_data
+            return [big_data]
+
+    # otherwise return the raw object in a list
+    return [data]
