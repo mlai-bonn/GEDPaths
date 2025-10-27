@@ -9,7 +9,7 @@ prints a short summary.
 import os
 import sys
 
-from converter.torch_geometric_exporter import load_pt_to_pyg_data_list
+from python_src.converter.torch_geometric_exporter import load_pt_to_pyg_data_list
 
 
 def main():
