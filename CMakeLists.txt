@@ -37,5 +37,6 @@ add_executable(CreateMappings create_edit_mappings.cpp ${LIBGRAPH_ROOT}/include/
 add_executable(CreatePaths create_edit_paths.cpp ${LIBGRAPH_ROOT}/include/libGraph.h)
 add_executable(AnalyzePaths analyze_edit_path_graphs.cpp ${LIBGRAPH_ROOT}/include/libGraph.h)
 add_executable(AnalyzeMappings analyze_mappings.cpp ${LIBGRAPH_ROOT}/include/libGraph.h ${GEDLIB_ROOT}/src/env/ged_env.hpp)
+add_executable(Test test.cpp ${LIBGRAPH_ROOT}/include/libGraph.h ${GEDLIB_ROOT}/src/env/ged_env.hpp)
 
 target_link_libraries(CreateMappings libsvm.so libnomad.so libdoublefann.so.2 gurobi)

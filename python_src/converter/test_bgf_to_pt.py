@@ -1,12 +1,22 @@
-import sys
-import os
-from python_src.converter.torch_geometric_exporter import load_bgf_two_pass_to_pyg_data_list_numpy
-import torch
+from os.path import dirname
+from python_src.converter.torch_geometric_exporter import BGFInMemoryDataset
 
 if __name__ == "__main__":
-    bgf_path = "Results/Paths/REFINE/MUTAG/MUTAG_edit_paths.bgf"
-    pt_path = "Results/Paths/REFINE/MUTAG/MUTAG_edit_paths.pt"
-    data_list = load_bgf_two_pass_to_pyg_data_list_numpy(bgf_path)
-    torch.save(data_list, pt_path)
-    print(f"Converted {bgf_path} to {pt_path} with {len(data_list)} graphs.")
+    bgf_path = "Results/Paths/F2/MUTAG/MUTAG_edit_paths.bgf"
+    # Use the directory containing the bgf as the dataset root so the processed file
+    # will be written to <root>/processed/data.pt
+    root_dir = dirname(bgf_path) or "."
 
+    ds = BGFInMemoryDataset(root=root_dir, path=bgf_path)
+    print(f"Processed dataset stored at: {ds.processed_paths[0]}")
+    try:
+        print(f"Dataset length (graphs): {len(ds)}")
+    except Exception:
+        # Fallback: if len() isn't available, try to infer from slices
+        if hasattr(ds, "slices") and isinstance(ds.slices, dict):
+            # slices typically contains 'x' or 'edge_index' keys mapping to tensors
+            any_slice = next(iter(ds.slices.values()))
+            # number of examples equals length of the first slice dimension
+            print(f"Dataset length (graphs, inferred): {len(any_slice)}")
+        else:
+            print("Dataset length: unknown")

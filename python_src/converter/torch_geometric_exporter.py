@@ -118,6 +118,7 @@ def load_bgf_two_pass_to_pyg_data_list_numpy(
                 edge_features=int(ef),
                 edge_feature_names=edge_feature_names,
             ))
+            print(f"Read header for graph '{name}': {n} nodes, {m} edges, ")
 
         # ---- PASS 2: for each graph in order, read node features then edge features ----
         data_list: List[Data] = []
@@ -134,6 +135,7 @@ def load_bgf_two_pass_to_pyg_data_list_numpy(
                 u = _read_size_t(f, endian, size_t_bytes)
                 v = _read_size_t(f, endian, size_t_bytes)
                 if u >= h.node_number or v >= h.node_number:
+                    print(f"Error reading edge {_i} of graph '{h.name}': u={u}, v={v}, node_number={h.node_number}")
                     raise ValueError("Invalid edge index; check endianness/size_t.")
                 # Store as 0-based indices
                 if _i == 0:
@@ -151,6 +153,7 @@ def load_bgf_two_pass_to_pyg_data_list_numpy(
 
                 else:
                     edge_attr = None
+                print(f"Read edge {_i + 1} / {h.edge_number} for graph '{h.name}'")
 
             d = Data(
                 x=x,
@@ -159,13 +162,11 @@ def load_bgf_two_pass_to_pyg_data_list_numpy(
             )
             d.num_nodes = h.node_number
             d.bgf_name = h.name
-            d.bgf_graph_type = h.graph_type
-            d.bgf_version = int(compatibility_format_version)
             # split the name into start graph end graph and edit step
-            d.bgf_name_parts = h.name.split("_")
-            d.edit_path_start = d.bgf_name_parts[-3]
-            d.edit_path_end = d.bgf_name_parts[-2]
-            d.edit_path_step = d.bgf_name_parts[-1]
+            bgf_name_parts = h.name.split("_")
+            d.edit_path_start = int(bgf_name_parts[-3])
+            d.edit_path_end = int(bgf_name_parts[-2])
+            d.edit_path_step = int(bgf_name_parts[-1])
             if keep_feature_names:
                 d.node_feature_names = h.node_feature_names
                 d.edge_feature_names = h.edge_feature_names
