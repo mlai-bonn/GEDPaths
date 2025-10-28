@@ -32,7 +32,7 @@ int main(int argc, const char * argv[]) {
     // -t arguments for the threads to use
     int num_threads = 1;
     // -method
-    auto method = "REFINE";
+    auto method = "F2";
     std::string method_options = "";
     auto ged_method = GEDMethodFromString(method);
     // -cost
@@ -46,6 +46,9 @@ int main(int argc, const char * argv[]) {
     int num_pairs = 5000;
     std::vector<std::pair<INDEX, INDEX>> graph_ids;
 
+    // Add single source/target arguments
+    int single_source = -1;
+    int single_target = -1;
 
     for (int i = 1; i < argc - 1; ++i) {
         if (std::string(argv[i]) == "-db" || std::string(argv[i]) == "-data" || std::string(argv[i]) == "-dataset" || std::string(argv[i]) == "-database") {
@@ -95,6 +98,12 @@ int main(int argc, const char * argv[]) {
         else if (std::string(argv[i]) == "-num_graphs") {
             num_pairs = std::stoi(argv[i+1]);
         }
+        else if (std::string(argv[i]) == "-single_source") {
+            single_source = std::stoi(argv[i+1]);
+        }
+        else if (std::string(argv[i]) == "-single_target") {
+            single_target = std::stoi(argv[i+1]);
+        }
         // add help
         else if (std::string(argv[i]) == "-help") {
             std::cout << "Create edit mappings for a given database/dataset" << std::endl;
@@ -117,8 +126,10 @@ int main(int argc, const char * argv[]) {
         }
 
     }
+
     // set up random device
-    auto gen = std::mt19937(seed);
+    auto gen = std::mt19937_64(seed);
+
 
     // create mapping output directory
     if (!std::filesystem::exists(output_path)) {
@@ -137,34 +148,20 @@ int main(int argc, const char * argv[]) {
     GraphData<UDataGraph> graphs;
     LoadSaveGraphDatasets::LoadPreprocessedTUDortmundGraphData(db, processed_graph_path, graphs);
 
-    if (!graph_ids_path.empty()) {
-        // load graph ids from file
-        std::ifstream id_file(graph_ids_path);
-        if (!id_file.is_open()) {
-            std::cerr << "Could not open the graph ids file: " << graph_ids_path << std::endl;
-            return 1;
-        }
-        std::string line;
-        while (std::getline(id_file, line)) {
-            std::istringstream iss(line);
-            int id1, id2;
-            if (!(iss >> id1 >> id2)) {
-                std::cerr << "Error reading graph ids from line: " << line << std::endl;
-                continue;
-            }
-            if (id1 < 0 || id1 >= graphs.graphData.size() || id2 < 0 || id2 >= graphs.graphData.size()) {
-                std::cerr << "Graph ids out of range: " << id1 << ", " << id2 << std::endl;
-                continue;
-            }
-            graph_ids.emplace_back(id1, id2);
-        }
+    // If single_source and single_target are set, only compute and print that mapping
+    if (single_source >= 0 && single_target >= 0) {
+            auto result = create_edit_mappings_single(single_source, single_target, graphs, edit_cost, ged_method, method_options, true);
+           return 0;
     }
+    // ...existing code...
     else {
         if (num_pairs > 0 && num_pairs <= graphs.graphData.size() * (graphs.graphData.size() - 1) / 2) {
+            std::uniform_int_distribution<INDEX> dist(0, graphs.graphData.size() - 1);
             while (graph_ids.size() < num_pairs) {
-                INDEX id1 = gen() % graphs.graphData.size();
+                // get random integer between 0 and graphs.GraphData.size() - 1
+                INDEX id1 = dist(gen);
                 // id2 should between id1 + 1 and graphs.GraphData.size() - 1
-                INDEX id2 = gen() % graphs.graphData.size();
+                INDEX id2 = dist(gen);
                 if (id1 != id2) {
                     std::pair<INDEX, INDEX> pair = std::minmax(id1, id2);
                     if (ranges::find(graph_ids, pair) == graph_ids.end()) {
@@ -203,7 +200,7 @@ int main(int argc, const char * argv[]) {
     int threads = num_threads > 0 ? num_threads : 1;
     const size_t total_pairs = graph_ids.size();
     if (threads == 1) {
-        auto ged_env = ged::GEDEnv<ged::LabelID, ged::LabelID, ged::LabelID>();;
+        auto ged_env = ged::GEDEnv<ged::LabelID, ged::LabelID, ged::LabelID>();
         InitializeGEDEnvironment(ged_env, graphs, edit_cost, ged_method, method_options);
         ComputeGEDResults(ged_env, graphs, graph_ids, base_tmp.string());
     }

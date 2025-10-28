@@ -77,6 +77,10 @@ class GEDPathsInMemoryDataset(BGFInMemoryDataset):
 
         The dataset must have `edit_path_start`, `edit_path_end` and
         `edit_path_step` set on each Data object (this is done by the BGF loader).
+
+        This implementation tries a fast-path that reads the attributes directly
+        from the collated `self.data` tensors (cheap). If that isn't possible
+        it falls back to the safe but slower `self.get(i)` loop.
         """
         # If the processed file is empty or dataset not populated, nothing to do
         try:
@@ -90,18 +94,68 @@ class GEDPathsInMemoryDataset(BGFInMemoryDataset):
                 n = 0
 
         temp_map: Dict[Tuple[int, int], List[Tuple[int, int]]] = defaultdict(list)
-        for i in range(n):
-            try:
-                d: Any = self.get(i)
-            except Exception:
-                # If get fails, skip this index
-                continue
-            # Read expected attributes; if missing, skip
-            if not hasattr(d, "edit_path_start") or not hasattr(d, "edit_path_end") or not hasattr(d, "edit_path_step"):
-                continue
-            key = (int(d.edit_path_start), int(d.edit_path_end))
-            step = int(d.edit_path_step)
-            temp_map[key].append((step, i))
+
+        # Fast path: if the collated `self.data` contains per-graph attributes
+        # `edit_path_start`, `edit_path_end`, `edit_path_step` we can extract
+        # them without calling `self.get(i)` which is much faster for large
+        # datasets.
+        fast_done = False
+        try:
+            if n > 0 and hasattr(self, "data") and hasattr(self.data, "edit_path_start") and hasattr(self.data, "edit_path_end") and hasattr(self.data, "edit_path_step"):
+                # Attempt to convert these attributes to flat Python lists
+                def _to_list(x):
+                    # Handle torch tensor
+                    try:
+                        import torch
+                        if isinstance(x, torch.Tensor):
+                            return x.cpu().numpy().reshape(-1).tolist()
+                    except Exception:
+                        pass
+                    # Handle numpy array or other sequence-like
+                    try:
+                        import numpy as _np
+                        if isinstance(x, (_np.ndarray, list, tuple)):
+                            return _np.asarray(x).reshape(-1).tolist()
+                    except Exception:
+                        pass
+                    # If it's a scalar, replicate into length n only if slices are present
+                    try:
+                        if hasattr(x, '__len__'):
+                            return list(x)
+                    except Exception:
+                        pass
+                    return None
+
+                starts = _to_list(self.data.edit_path_start)
+                ends = _to_list(self.data.edit_path_end)
+                steps = _to_list(self.data.edit_path_step)
+
+                if starts is not None and ends is not None and steps is not None and len(starts) == n and len(ends) == n and len(steps) == n:
+                    for i in range(n):
+                        try:
+                            key = (int(starts[i]), int(ends[i]))
+                            step = int(steps[i])
+                        except Exception:
+                            continue
+                        temp_map[key].append((step, i))
+                    fast_done = True
+        except Exception:
+            fast_done = False
+
+        if not fast_done:
+            # Fallback slow but robust path: iterate items and read attributes via get(i)
+            for i in range(n):
+                try:
+                    d: Any = self.get(i)
+                except Exception:
+                    # If get fails, skip this index
+                    continue
+                # Read expected attributes; if missing, skip
+                if not hasattr(d, "edit_path_start") or not hasattr(d, "edit_path_end") or not hasattr(d, "edit_path_step"):
+                    continue
+                key = (int(d.edit_path_start), int(d.edit_path_end))
+                step = int(d.edit_path_step)
+                temp_map[key].append((step, i))
 
         # Sort by step and store only indices
         for key, step_idx_list in temp_map.items():

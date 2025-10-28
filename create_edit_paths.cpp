@@ -5,10 +5,7 @@
 #include <utility>
 #include <random>
 #include <algorithm>
-#include "GraphDataStructures/GraphBase.h"
-#include "LoadSaveGraphDatasets.h"
-#include "LoadSave.h"
-#include "Algorithms/GED/GEDFunctions.h"
+#include <libGraph.h>
 
 std::vector<int> CheckResultsValidity(const std::vector<GEDEvaluation<UDataGraph>>& results) {
     std::vector<int> invalids;
@@ -21,10 +18,11 @@ std::vector<int> CheckResultsValidity(const std::vector<GEDEvaluation<UDataGraph
         auto second_set = std::set<std::decay_t<decltype(snd[0])>>{};
         for (const auto& v : snd) second_set.insert(v);
         bool has_duplicate = (first_set.size() != fst.size() && second_set.size() != snd.size());
-        //bool distance_not_integer = (std::abs(result.distance - std::round(result.distance)) > 1e-6);
-        //if (has_duplicate || distance_not_integer) {
-        //    invalids.push_back(static_cast<int>(i));
-        //}
+        bool distance_not_integer = false;
+        //(std::abs(result.distance - std::round(result.distance)) > 1e-6);
+        if (has_duplicate || distance_not_integer) {
+            invalids.push_back(static_cast<int>(i));
+        }
     }
     return invalids;
 }
@@ -49,6 +47,7 @@ int main(int argc, const char * argv[]) {
     std::string method = "REFINE";
     int source_id = -1;
     int target_id = -1;
+    bool fix_broken_mappings = true;
 
     for (int i = 1; i < argc; ++i) {
         if (std::string(argv[i]) == "-db" || std::string(argv[i]) == "-data" || std::string(argv[i]) == "-dataset" || std::string(argv[i]) == "-database") {
@@ -77,6 +76,10 @@ int main(int argc, const char * argv[]) {
         }
         else if (std::string(argv[i]) == "-target_id") {
             target_id = std::stoi(argv[i+1]);
+            ++i;
+        }
+        else if (std::string(argv[i]) == "-no_map_fix") {
+            fix_broken_mappings = false;
             ++i;
         }
         // add help
@@ -120,11 +123,19 @@ int main(int argc, const char * argv[]) {
     if (!invalids.empty()) {
         std::cerr << "Warning: Found invalid mappings for the following result ids (these will be skipped):\n";
         for (const auto &id : invalids) {
-            std::cerr << "  " << id << "\n";
+            std::cerr << "  " << id << ": " << "Graph IDs (" << results[id].graph_ids.first << ", " << results[id].graph_ids.second << ")\n";
         }
     }
     else {
         std::cout << "All loaded mappings are valid.\n";
+    }
+    if (fix_broken_mappings) {
+        // recalulate the mappings for the invalid results
+        std::cout << "Recalculating mappings for invalid results...\n";
+        for (const auto &id : invalids) {
+            auto fixed_result = create_edit_mappings_single(single_source, single_target, graphs, edit_cost, ged_method, method_options, true);
+        }
+
     }
     // Filter out invalid results
     std::vector<GEDEvaluation<UDataGraph>> valid_results;

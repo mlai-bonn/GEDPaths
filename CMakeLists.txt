@@ -33,10 +33,15 @@ include_directories(${LIBGRAPH_ROOT}/include ${GEDLIB_ROOT} ${GEDLIB_ROOT}/ext/b
 link_directories(${LIBGRAPH_ROOT}/include ${GEDLIB_ROOT}/ext/nomad.3.8.1/lib ${GEDLIB_ROOT}/ext/libsvm.3.22 ${GEDLIB_ROOT}/ext/fann.2.2.0/lib)
 
 # adding the Google_Tests_run target
-add_executable(CreateMappings create_edit_mappings.cpp ${LIBGRAPH_ROOT}/include/libGraph.h ${GEDLIB_ROOT}/src/env/ged_env.hpp)
-add_executable(CreatePaths create_edit_paths.cpp ${LIBGRAPH_ROOT}/include/libGraph.h)
-add_executable(AnalyzePaths analyze_edit_path_graphs.cpp ${LIBGRAPH_ROOT}/include/libGraph.h)
-add_executable(AnalyzeMappings analyze_mappings.cpp ${LIBGRAPH_ROOT}/include/libGraph.h ${GEDLIB_ROOT}/src/env/ged_env.hpp)
-add_executable(Test test.cpp ${LIBGRAPH_ROOT}/include/libGraph.h ${GEDLIB_ROOT}/src/env/ged_env.hpp)
+add_executable(CreateMappings create_edit_mappings.cpp ${LIBGRAPH_ROOT}/include/libGraph.h ${GEDLIB_ROOT}/src/env/ged_env.hpp
+        src/include.h)
+add_executable(CreatePaths create_edit_paths.cpp ${LIBGRAPH_ROOT}/include/libGraph.h
+        src/include.h)
+add_executable(AnalyzePaths analyze_edit_path_graphs.cpp ${LIBGRAPH_ROOT}/include/libGraph.h
+        src/include.h)
+add_executable(AnalyzeMappings analyze_mappings.cpp ${LIBGRAPH_ROOT}/include/libGraph.h ${GEDLIB_ROOT}/src/env/ged_env.hpp
+        src/include.h)
+add_executable(Test test.cpp ${LIBGRAPH_ROOT}/include/libGraph.h ${GEDLIB_ROOT}/src/env/ged_env.hpp
+        src/include.h)
 
 target_link_libraries(CreateMappings libsvm.so libnomad.so libdoublefann.so.2 gurobi)

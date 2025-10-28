@@ -67,7 +67,7 @@ class _GraphHeader:
     edge_feature_names: List[str]
 
 
-def load_bgf_two_pass_to_pyg_data_list_numpy(
+def bgf_to_pyg_data_list(
         path: str,
         *,
         endian: str = "<",          # '<' little-endian, '>' big-endian
@@ -153,7 +153,6 @@ def load_bgf_two_pass_to_pyg_data_list_numpy(
 
                 else:
                     edge_attr = None
-                print(f"Read edge {_i + 1} / {h.edge_number} for graph '{h.name}'")
 
             d = Data(
                 x=x,
@@ -164,9 +163,10 @@ def load_bgf_two_pass_to_pyg_data_list_numpy(
             d.bgf_name = h.name
             # split the name into start graph end graph and edit step
             bgf_name_parts = h.name.split("_")
-            d.edit_path_start = int(bgf_name_parts[-3])
-            d.edit_path_end = int(bgf_name_parts[-2])
-            d.edit_path_step = int(bgf_name_parts[-1])
+            if len(bgf_name_parts) > 3:
+                d.edit_path_start = int(bgf_name_parts[-3])
+                d.edit_path_end = int(bgf_name_parts[-2])
+                d.edit_path_step = int(bgf_name_parts[-1])
             if keep_feature_names:
                 d.node_feature_names = h.node_feature_names
                 d.edge_feature_names = h.edge_feature_names
@@ -215,7 +215,7 @@ class BGFInMemoryDataset(InMemoryDataset):
             raise FileNotFoundError(self._bgf_path)
 
     def process(self):
-        data_list = load_bgf_two_pass_to_pyg_data_list_numpy(
+        data_list = bgf_to_pyg_data_list(
             self._bgf_path,
             endian=self._endian,
             size_t_bytes=self._size_t_bytes,
