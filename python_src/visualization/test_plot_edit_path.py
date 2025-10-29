@@ -5,9 +5,9 @@ from plot_graph import plot_edit_path, find_processed_pt
 from python_src.converter.GEDPathsInMemory import GEDPathsInMemoryDataset
 
 # Paths
-root_dir = "../../Results/Paths/F2/MUTAG/"
-processed_dir = "../../Results/Paths/F2/MUTAG/processed"
-edit_path_file = "../../Results/Paths/F2/MUTAG/MUTAG_edit_path_data.txt"
+root_dir = "Results/Paths/F2/MUTAG/"
+processed_dir = "Results/Paths/F2/MUTAG/processed"
+edit_path_file = "Results/Paths/F2/MUTAG/MUTAG_edit_paths_data.txt"
 
 # Load processed dataset
 processed_pt = find_processed_pt(processed_dir)

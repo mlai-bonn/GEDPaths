@@ -56,10 +56,11 @@ def plot_csv_file(csv_path: str, save: bool = True, show: bool = False):
 
     # Positions files detection
     if 'Positions' in basename:
-        counts_df = _process_positions_file(csv_path, dirpath, basename, save=save, show=show)
-        # only return when counts_df was successfully produced
-        if counts_df is not None:
-            return (basename, counts_df)
+        ret = _process_positions_file(csv_path, dirpath, basename, save=save, show=show)
+        # ret is either None or (counts_df, mat)
+        if ret is not None:
+            counts_df, mat = ret
+            return (basename, counts_df, mat)
         return None
 
     try:
@@ -101,6 +102,8 @@ def plot_csv_file(csv_path: str, save: bool = True, show: bool = False):
             outpath = py_out(basename + '.png')
             plt.savefig(outpath)
             print(f"Saved plot to {outpath}")
+            # also write a data-embedded TeX (line + histogram)
+            write_tex_line_hist(outpath.replace('.png', '.tex'), values.values, title=f"Plot: {basename}")
         except Exception as e:
             print(f"Failed to save plot for {csv_path}: {e}")
 
@@ -204,6 +207,7 @@ def _process_positions_file(csv_path: str, dirpath: str, basename: str, save: bo
     if save:
         plt.savefig(out_counts_png)
         print(f"Saved counts plot: {out_counts_png}")
+        write_tex_positions_counts(out_counts_png.replace('.png', '.tex'), counts_df['position'].values, counts_df['count'].values, title=f"Counts per position for {basename}")
     if show:
         plt.show()
     else:
@@ -225,13 +229,14 @@ def _process_positions_file(csv_path: str, dirpath: str, basename: str, save: bo
     if save:
         plt.savefig(out_heatmap)
         print(f"Saved heatmap: {out_heatmap}")
+        write_tex_positions_heatmap(out_heatmap.replace('.png', '.tex'), mat, title=f"Heatmap for {basename}")
     if show:
         plt.show()
     else:
         plt.close()
 
-    # return the counts DataFrame for possible aggregation
-    return counts_df
+    # return the counts DataFrame and the presence matrix (paths x positions)
+    return (counts_df, mat)
 
 
 def bucket_combined_counts_df(combined_df: pd.DataFrame, n_buckets: int = 10) -> pd.DataFrame:
@@ -287,10 +292,328 @@ def plot_buckets_stacked(bucket_df: pd.DataFrame, out_png: str, normalize: bool 
     if save:
         plt.savefig(out_png)
         print(f"Saved buckets plot: {out_png}")
+        # write data-embedded TeX file for buckets plot
+        write_tex_stacked_from_df(out_png.replace('.png', '.tex'), bucket_df, 'bucket', op_cols, 'bucket (path segment)', 'proportion' if normalize else 'count', ('Normalized ' if normalize else '') + 'Operation distribution across path buckets')
     if show:
         plt.show()
     else:
         plt.close()
+
+
+def plot_positions_bars(combined_df: pd.DataFrame, out_png: str, normalize: bool = False, save: bool = True, show: bool = False):
+    """Create a stacked bar plot across positions (x-axis = position) using the operation columns.
+
+    This produces a stacked bar for each position where each stack component is one operation (column).
+    If `normalize=True` each position's stacks are converted to proportions (summing to 1) to highlight
+    relative distribution per position.
+    """
+    df = combined_df.copy()
+    if 'position' not in df.columns:
+        print("Combined DataFrame does not contain a 'position' column; cannot make positions bar plot.")
+        return
+
+    op_cols = [c for c in df.columns if c != 'position']
+    if not op_cols:
+        print('No operation columns to plot in positions bar plot.')
+        return
+
+    x = df['position'].values
+    arr = df[op_cols].values.astype(float)
+
+    if normalize:
+        # normalize per position (row)
+        row_sum = arr.sum(axis=1)
+        # avoid division by zero
+        row_sum[row_sum == 0] = 1.0
+        arr = arr / row_sum[:, None]
+
+    # choose figure width based on number of positions (avoid extremely wide figures)
+    n_pos = len(x)
+    fig_w = int(max(8, min(0.25 * n_pos, 40)))
+    fig_h = 6
+
+    fig, ax = plt.subplots(figsize=(fig_w, fig_h))
+
+    bottom = np.zeros(n_pos)
+    # draw bars stacked
+    for idx, col in enumerate(op_cols):
+        ax.bar(x, arr[:, idx], bottom=bottom, label=col, width=1.0)
+        bottom = bottom + arr[:, idx]
+
+    ax.set_xlabel('position')
+    ax.set_ylabel('proportion' if normalize else 'count')
+    ax.set_title(('Normalized ' if normalize else '') + 'Operation counts per position (stacked)')
+    ax.set_xlim(x.min() - 0.5, x.max() + 0.5)
+    ax.grid(True, axis='y', linestyle='--', alpha=0.3)
+
+    # Put legend to the right if there are multiple operation columns
+    if len(op_cols) > 1:
+        ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+    plt.tight_layout()
+
+    if save:
+        try:
+            plt.savefig(out_png)
+            print(f"Saved positions stacked bar plot: {out_png}")
+            # write data-embedded TeX file for positions bar plot
+            write_tex_stacked_from_df(out_png.replace('.png', '.tex'), df, 'position', op_cols, 'position', 'count', 'Operation counts per position (stacked)')
+        except Exception as e:
+            print(f"Failed to save positions bar plot {out_png}: {e}")
+    if show:
+        plt.show()
+    else:
+        plt.close()
+
+
+def plot_nodes_edges_per_position(mat_all: np.ndarray, nodes_vals: np.ndarray, edges_vals: np.ndarray, out_prefix: str, save: bool = True, show: bool = False):
+    """Create stacked bar plots per position with two stacks: total nodes and total edges.
+
+    mat_all: (n_paths x width) binary matrix indicating presence of any operation at (path,position)
+    nodes_vals, edges_vals: arrays of length n_paths with the number of nodes/edges for each path
+    out_prefix: prefix filename (path) where to store PNGs (absolute and normalized)
+    """
+    if mat_all is None or mat_all.size == 0:
+        print('No position matrix provided for nodes/edges plotting.')
+        return
+    n_paths, width = mat_all.shape
+    # ensure vectors length
+    n = min(n_paths, len(nodes_vals), len(edges_vals))
+    if n_paths != len(nodes_vals) or n_paths != len(edges_vals):
+        print(f'Warning: matrix paths={n_paths}, nodes_vals={len(nodes_vals)}, edges_vals={len(edges_vals)}; using min={n}')
+
+    # Trim to n
+    mat = mat_all[:n, :]
+    nodes = nodes_vals[:n]
+    edges = edges_vals[:n]
+
+    # sum per position
+    nodes_sum = mat.T.dot(nodes)
+    edges_sum = mat.T.dot(edges)
+
+    positions = np.arange(width)
+    df = pd.DataFrame({'position': positions, 'nodes': nodes_sum, 'edges': edges_sum})
+
+    # absolute stacked
+    fig, ax = plt.subplots(figsize=(12, 5))
+    ax.bar(df['position'], df['nodes'], label='nodes')
+    ax.bar(df['position'], df['edges'], bottom=df['nodes'], label='edges')
+    ax.set_xlabel('position')
+    ax.set_ylabel('count (sum across paths)')
+    ax.set_title('Sum of nodes and edges across paths per position (stacked)')
+    ax.legend()
+    plt.tight_layout()
+    out_abs = out_prefix + '_nodes_edges_absolute.png'
+    if save:
+        plt.savefig(out_abs)
+        print(f'Saved nodes/edges per-position absolute plot: {out_abs}')
+        # write data-embedded TeX file for nodes/edges absolute plot
+        write_tex_nodes_edges_data(out_abs.replace('.png', '.tex'), positions, nodes_sum, edges_sum, caption='Sum of nodes and edges across paths per position (stacked)', normalized=False)
+    if show:
+        plt.show()
+    else:
+        plt.close()
+
+    # normalized per-position
+    total = df['nodes'] + df['edges']
+    total[total == 0] = 1.0
+    nodes_prop = df['nodes'] / total
+    edges_prop = df['edges'] / total
+    fig, ax = plt.subplots(figsize=(12, 5))
+    ax.bar(df['position'], nodes_prop, label='nodes')
+    ax.bar(df['position'], edges_prop, bottom=nodes_prop, label='edges')
+    ax.set_xlabel('position')
+    ax.set_ylabel('proportion')
+    ax.set_title('Proportion of nodes vs edges across paths per position (stacked)')
+    ax.legend()
+    plt.tight_layout()
+    out_norm = out_prefix + '_nodes_edges_normalized.png'
+    if save:
+        plt.savefig(out_norm)
+        print(f'Saved nodes/edges per-position normalized plot: {out_norm}')
+        # write data-embedded TeX file for nodes/edges normalized plot
+        write_tex_nodes_edges_data(out_norm.replace('.png', '.tex'), positions, nodes_sum, edges_sum, caption='Proportion of nodes vs edges across paths per position (stacked)', normalized=True)
+    if show:
+        plt.show()
+    else:
+        plt.close()
+
+
+def write_tex_line_hist(tex_path: str, values: np.ndarray, title: str = None):
+    """Write a standalone TeX (PGFPlots) that contains a line plot and histogram using embedded data."""
+    try:
+        vals = np.asarray(values).astype(float)
+        n = len(vals)
+        bins = min(50, max(5, n // 2))
+        hist_counts, bin_edges = np.histogram(vals, bins=bins)
+        bin_centers = 0.5 * (bin_edges[:-1] + bin_edges[1:])
+
+        with open(tex_path, 'w') as f:
+            f.write('\\documentclass{standalone}\n')
+            f.write('\\usepackage{pgfplots}\n')
+            f.write('\\pgfplotsset{compat=1.18}\n')
+            f.write('\\begin{document}\n')
+            f.write('\\begin{tikzpicture}\n')
+            # left: line plot (50% width)
+            f.write('  \\begin{axis}[name=plotA, width=0.55\\textwidth, height=0.45\\textwidth, xlabel={index}, ylabel={value}]\\n')
+            f.write('  \\addplot table[row sep=\\\\]{\\n')
+            for i, v in enumerate(vals):
+                f.write(f"{i} {float(v)}\\\\\n")
+            f.write('  };\\n')
+            f.write('  \\end{axis}\\n')
+            # right: histogram
+            f.write('  \\begin{axis}[at={(plotA.east)}, anchor=west, xshift=1em, width=0.35\\textwidth, height=0.45\\textwidth, xlabel={value}, ylabel={count}]\\n')
+            f.write('  \\addplot[ybar] table[row sep=\\\\]{\\n')
+            for c, bc in zip(hist_counts, bin_centers):
+                f.write(f"{float(bc)} {int(c)}\\\\\n")
+            f.write('  };\\n')
+            f.write('  \\end{axis}\\n')
+            if title:
+                safe = title.replace('%', '%%')
+                f.write('% ' + safe + '\n')
+            f.write('\\end{tikzpicture}\\n')
+            f.write('\\end{document}\\n')
+        print(f"Wrote line+hist TeX (data embedded): {tex_path}")
+    except Exception as e:
+        print(f"Failed to write line+hist TeX {tex_path}: {e}")
+
+
+def write_tex_positions_counts(tex_path: str, positions: np.ndarray, counts: np.ndarray, title: str = None):
+    try:
+        with open(tex_path, 'w') as f:
+            f.write('\\documentclass{standalone}\n')
+            f.write('\\usepackage{pgfplots}\n')
+            f.write('\\pgfplotsset{compat=1.18}\n')
+            f.write('\\begin{document}\n')
+            f.write('\\begin{tikzpicture}\n')
+            f.write('  \\begin{axis}[width=\\textwidth, height=0.45\\textwidth, xlabel={position}, ylabel={count}]\\n')
+            f.write('  \\addplot table[row sep=\\\\]{\\n')
+            for p, c in zip(positions, counts):
+                f.write(f"{int(p)} {int(c)}\\\\\n")
+            f.write('  };\\n')
+            f.write('  \\end{axis}\\n')
+            if title:
+                f.write('% ' + title.replace('%', '%%') + '\n')
+            f.write('\\end{tikzpicture}\\n')
+            f.write('\\end{document}\\n')
+        print(f"Wrote positions counts TeX (data embedded): {tex_path}")
+    except Exception as e:
+        print(f"Failed writing positions counts TeX {tex_path}: {e}")
+
+
+def write_tex_positions_heatmap(tex_path: str, mat: np.ndarray, title: str = None):
+    try:
+        nrows, ncols = mat.shape
+        with open(tex_path, 'w') as f:
+            f.write('\\documentclass{standalone}\n')
+            f.write('\\usepackage{pgfplots}\n')
+            f.write('\\pgfplotsset{compat=1.18}\n')
+            f.write('\\begin{document}\n')
+            f.write('\\begin{tikzpicture}\n')
+            f.write('  \\begin{axis}[width=\\textwidth, height=0.6\\textwidth, xlabel={position}, ylabel={path index}, colormap/viridis]\\n')
+            f.write('  \\addplot [matrix plot*, point meta=explicit] table[row sep=\\\\]{\\n')
+            f.write('x y value\\\\\n')
+            for i in range(nrows):
+                for j in range(ncols):
+                    f.write(f"{j} {i} {int(mat[i, j])}\\\\\n")
+            f.write('  };\\n')
+            f.write('  \\end{axis}\\n')
+            if title:
+                f.write('% ' + title.replace('%', '%%') + '\n')
+            f.write('\\end{tikzpicture}\\n')
+            f.write('\\end{document}\\n')
+        print(f"Wrote positions heatmap TeX (data embedded): {tex_path}")
+    except Exception as e:
+        print(f"Failed writing positions heatmap TeX {tex_path}: {e}")
+
+
+def write_tex_nodes_edges_data(tex_path: str, positions: np.ndarray, nodes_sum: np.ndarray, edges_sum: np.ndarray, caption: str = None, normalized: bool = False):
+    """Write a standalone LaTeX file that uses PGFPlots to draw a stacked bar chart from the provided arrays.
+
+    The generated .tex embeds the numeric data as a literal table so no external images are required.
+    tex_path: absolute path to write (will end with .tex)
+    positions, nodes_sum, edges_sum: 1D numpy arrays of equal length
+    normalized: if True, the values are treated as proportions (expected between 0 and 1)
+    """
+    try:
+        dirname = os.path.dirname(tex_path)
+        os.makedirs(dirname, exist_ok=True)
+        with open(tex_path, 'w') as f:
+            f.write('\\documentclass{standalone}\n')
+            f.write('\\usepackage{pgfplots}\n')
+            f.write('\\pgfplotsset{compat=1.18}\n')
+            f.write('\\usepackage{siunitx}\n')
+            f.write('\\begin{document}\n')
+            f.write('\\begin{tikzpicture}\n')
+            f.write('  \\begin{axis}[ybar stacked, bar width=0.8, width=\\textwidth, height=0.5\\textwidth, xlabel={position}, ylabel={' + ('proportion' if normalized else 'count') + '}, legend pos=outer north east, enlarge x limits=0.02, xtick=data]\n')
+            f.write('  % data: position nodes edges\n')
+            f.write('  \\pgfplotstableread{\n')
+            # write table header
+            f.write('position nodes edges\n')
+            for p, n, e in zip(positions, nodes_sum, edges_sum):
+                # format numeric values (use float for safety)
+                f.write(f"{int(p)} {float(n)} {float(e)}\n")
+            f.write('  }\\loadedtable\n')
+            f.write('  \\addplot table[x=position,y=nodes]{\\loadedtable};\n')
+            f.write('  \\addplot table[x=position,y=edges]{\\loadedtable};\n')
+            f.write('  \\legend{nodes,edges}\n')
+            f.write('  \\end{axis}\n')
+            if caption:
+                safe_caption = caption.replace('%', '%%')
+                f.write('  % ' + safe_caption + '\n')
+            f.write('\\end{tikzpicture}\n')
+            f.write('\\end{document}\n')
+        print(f"Wrote nodes/edges TeX (data embedded): {tex_path}")
+    except Exception as e:
+        print(f"Failed to write nodes/edges TeX {tex_path}: {e}")
+
+
+def write_tex_stacked_from_df(tex_path: str, df: pd.DataFrame, x_col: str, stack_cols: list, xlabel: str, ylabel: str, title: str, normalized: bool = False):
+    """Write a standalone LaTeX (PGFPlots) file that draws a stacked bar chart from df.
+
+    df: DataFrame containing x_col and the stack_cols to stack
+    tex_path: output .tex file path
+    """
+    try:
+        dirname = os.path.dirname(tex_path)
+        os.makedirs(dirname, exist_ok=True)
+        with open(tex_path, 'w') as f:
+            f.write('\\documentclass{standalone}\n')
+            f.write('\\usepackage{pgfplots}\n')
+            f.write('\\pgfplotsset{compat=1.18}\n')
+            f.write('\\begin{document}\n')
+            f.write('\\begin{tikzpicture}\n')
+            ylabel_safe = ylabel.replace('%', '%%')
+            f.write('  \\begin{axis}[ybar stacked, bar width=0.8, width=\\textwidth, height=0.5\\textwidth, xlabel={' + xlabel + '}, ylabel={' + ylabel_safe + '}, legend pos=outer north east, enlarge x limits=0.02, xtick=data]\n')
+            # write table header using sanitized column names (replace '_' -> '-') to avoid catcode issues
+            sanitized_cols = [c.replace('_', '-') for c in stack_cols]
+            header = ' '.join([x_col] + sanitized_cols)
+            f.write('  \\pgfplotstableread{\n')
+            f.write(header + '\n')
+            for _, row in df.iterrows():
+                vals = [str(int(row[x_col]))]
+                for c in stack_cols:
+                    val = row[c]
+                    if pd.isna(val):
+                        vals.append('0')
+                    else:
+                        vals.append(str(float(val)))
+                f.write(' '.join(vals) + '\n')
+            f.write('  }\\loadedtable\n')
+            # addplots using sanitized column names
+            for orig, san in zip(stack_cols, sanitized_cols):
+                f.write('  \\addplot table[x=' + x_col + ',y=' + san + ']{\\loadedtable};\n')
+            # legend (escape underscores for display)
+            legend_items_escaped = ','.join([c.replace('_', '\\_') for c in stack_cols])
+            f.write('  \\legend{' + legend_items_escaped + '}\n')
+            f.write('  \\end{axis}\n')
+            if title:
+                safe_title = title.replace('%', '%%')
+                f.write('  % ' + safe_title + '\n')
+            f.write('\\end{tikzpicture}\n')
+            f.write('\\end{document}\n')
+        print(f"Wrote stacked-bar TeX (data embedded): {tex_path}")
+    except Exception as e:
+        print(f"Failed to write stacked-bar TeX {tex_path}: {e}")
 
 
 def main():
@@ -328,24 +651,24 @@ def main():
         except Exception as e:
             print(f"Error processing {csv}: {e}")
             ret = None
-        if ret and isinstance(ret, tuple) and len(ret) == 2:
-            basename, counts_df = ret
+        if ret and isinstance(ret, tuple) and len(ret) == 3:
+            basename, counts_df, mat = ret
             # normalize column name (strip trailing '_Positions')
             key = basename.replace('_Positions', '')
-            positions_counts[key] = counts_df
+            positions_counts[key] = (counts_df, mat)
 
     # If we have multiple operation counts, create a combined overlay plot and CSV
     if positions_counts:
         # determine global max position
         max_pos = 0
-        for df in positions_counts.values():
+        for df, _ in positions_counts.values():
             if not df.empty:
                 max_p = int(df['position'].max())
                 if max_p > max_pos:
                     max_pos = max_p
         positions = np.arange(max_pos + 1)
         combined = pd.DataFrame({'position': positions})
-        for name, df in positions_counts.items():
+        for name, (df, mat) in positions_counts.items():
             # merge counts; fill missing positions with 0
             merged = pd.merge(combined[['position']], df, on='position', how='left')
             combined[name] = merged['count'].fillna(0).astype(int)
@@ -354,19 +677,27 @@ def main():
         combined.to_csv(combined_csv, index=False)
         print(f"Wrote combined counts CSV: {combined_csv}")
 
-        # plot overlay
-        plt.figure(figsize=(12, 5))
-        for name in [k for k in combined.columns if k != 'position']:
-            plt.plot(combined['position'], combined[name], marker='o', label=name)
-        plt.title('Combined operation counts per position')
-        plt.xlabel('position')
-        plt.ylabel('count')
-        plt.grid(True)
-        plt.legend()
+        # plot overlay as stacked bar plot instead of lines
+        op_cols = [k for k in combined.columns if k != 'position']
+        x = combined['position'].values
+        fig, ax = plt.subplots(figsize=(12, 5))
+        bottom = np.zeros(len(x))
+        for col in op_cols:
+            ax.bar(x, combined[col].values, bottom=bottom, label=col, width=1.0)
+            bottom = bottom + combined[col].values
+        ax.set_title('Combined operation counts per position (stacked)')
+        ax.set_xlabel('position')
+        ax.set_ylabel('count')
+        ax.grid(True, axis='y', linestyle='--', alpha=0.3)
+        if len(op_cols) > 0:
+            ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+        plt.tight_layout()
         out_combined = py_out('Combined_Operations_counts.png')
         if args.save:
             plt.savefig(out_combined)
             print(f"Saved combined plot: {out_combined}")
+            # write data-embedded TeX file for combined plot
+            write_tex_stacked_from_df(out_combined.replace('.png', '.tex'), combined, 'position', op_cols, 'position', 'count', 'Combined operation counts per position (stacked)')
         if args.show:
             plt.show()
         else:
@@ -382,6 +713,42 @@ def main():
         plot_buckets_stacked(bucketed_df, py_out('Bucketed_Operations_counts_absolute.png'), normalize=False, save=args.save, show=args.show)
         # normalized stacked
         plot_buckets_stacked(bucketed_df, py_out('Bucketed_Operations_counts_normalized.png'), normalize=True, save=args.save, show=args.show)
+
+        # Per-position stacked bar plots - absolute and normalized
+        plot_positions_bars(combined, py_out('Positions_Operations_counts_absolute.png'), normalize=False, save=args.save, show=args.show)
+        plot_positions_bars(combined, py_out('Positions_Operations_counts_normalized.png'), normalize=True, save=args.save, show=args.show)
+
+        # Nodes/Edges per position - build a combined presence matrix across all mats
+        mats = [mat for (_df, mat) in positions_counts.values()]
+        if mats:
+            # determine unified sizes
+            max_rows = max(m.shape[0] for m in mats)
+            width = max_pos + 1
+            mat_all = np.zeros((max_rows, width), dtype=int)
+            for m in mats:
+                r, c = m.shape
+                # OR into mat_all; positions align at column 0
+                mat_all[:r, :c] |= m
+
+            # read global node/edge counts from Evaluation folder
+            nodes_csv = os.path.join(directory, 'Number_of_Nodes.csv')
+            edges_csv = os.path.join(directory, 'Number_of_Edges.csv')
+            if not os.path.isfile(nodes_csv) or not os.path.isfile(edges_csv):
+                print(f"Number_of_Nodes.csv or Number_of_Edges.csv not found in {directory}; skipping nodes/edges per-position plots")
+            else:
+                try:
+                    nodes_df = pd.read_csv(nodes_csv)
+                    edges_df = pd.read_csv(edges_csv)
+                    if 'value' not in nodes_df.columns or 'value' not in edges_df.columns:
+                        print('Number_of_Nodes/Edges CSV do not contain a "value" column; skipping')
+                    else:
+                        node_vals = nodes_df['value'].fillna(0).astype(float).values
+                        edge_vals = edges_df['value'].fillna(0).astype(float).values
+                        # create combined plot
+                        out_prefix = py_out('Combined')
+                        plot_nodes_edges_per_position(mat_all, node_vals, edge_vals, out_prefix, save=args.save, show=args.show)
+                except Exception as e:
+                    print(f"Error reading node/edge CSVs: {e}")
 
 
 if __name__ == '__main__':

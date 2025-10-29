@@ -2,6 +2,11 @@
 // Created by florian on 28.10.25.
 //
 
+// define gurobi
+#define GUROBI
+// use gedlib
+#define GEDLIB
+
 #ifndef GEDPATHS_CREATE_EDIT_MAPPINGS_H
 #define GEDPATHS_CREATE_EDIT_MAPPINGS_H
 #include <utility>

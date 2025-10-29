@@ -13,11 +13,15 @@
 #include "Algorithms/GED/GEDLIBWrapper.h"
 #include "Algorithms/GED/GEDFunctions.h"
 // OpenMP for parallel execution
+#include "src/create_edit_mappings.h"
+
 #include <omp.h>
 #include <memory>
 #include <atomic>
 #include <chrono>
 #include <iomanip>
+
+
 
 // source_id and target_id as args
 int main(int argc, const char * argv[]) {
@@ -137,6 +141,10 @@ int main(int argc, const char * argv[]) {
     }
     // create folder for method under output path
     output_path = output_path + method + "/";
+
+
+
+
     std::filesystem::create_directory(output_path + "/");
     std::filesystem::create_directory(output_path + "/" + db + "/");
     std::filesystem::create_directory(output_path + "/" + db + "/tmp/");
@@ -148,10 +156,48 @@ int main(int argc, const char * argv[]) {
     GraphData<UDataGraph> graphs;
     LoadSaveGraphDatasets::LoadPreprocessedTUDortmundGraphData(db, processed_graph_path, graphs);
 
+    // If db_ged_mapping.bin already exists load it and look for existing graph ids
+    // load mappings
+    std::vector<GEDEvaluation<UDataGraph>> results;
+    std::string mapping_file =output_path + "/" + db + "/" + db + "_ged_mapping.bin";
+    std::vector<std::pair<INDEX, INDEX>> existing_graph_ids;
+    if (std::filesystem::exists(mapping_file)) {
+        BinaryToGEDResult(mapping_file, graphs, results);
+        for (const auto& res : results) {
+            existing_graph_ids.emplace_back(res.graph_ids);
+        }
+        // sort existing graph ids
+        ranges::sort(existing_graph_ids, [](const std::pair<INDEX, INDEX>& a, const std::pair<INDEX, INDEX>& b) {
+            return a.first == b.first ? a.second < b.second : a.first < b.first;
+        });
+
+        // try to correct invalid mappings
+        auto invalid_mappings = CheckResultsValidity(results);
+
+        // recalulate the mappings for the invalid results
+        std::cout << "Recalculating mappings for invalid results...\n";
+        std::vector<std::pair<INDEX, GEDEvaluation<UDataGraph>>> fixed_results;
+        for (const auto &id : invalid_mappings) {
+            auto source_id = results[id].graph_ids.first;
+            auto target_id = results[id].graph_ids.second;
+            auto fixed_result = create_edit_mappings_single(source_id, target_id, graphs, edit_cost, ged_method, method_options, true);
+            if (CheckResultsValidity(std::vector<GEDEvaluation<UDataGraph>>{fixed_result}).empty()) {
+                fixed_results.emplace_back(id, fixed_result);
+                std::cout << "  Fixed mapping for result id " << id << " (Graph IDs: " << source_id << ", " << target_id << ")\n";
+            }
+        }
+        // replace invalid results with fixed results
+        for (auto &[id, result] : fixed_results) {
+            results[id] = result;
+        }
+        // save the updated results back to binary
+        GEDResultToBinary(output_path + "/" + db + "/", results);
+    }
+
     // If single_source and single_target are set, only compute and print that mapping
     if (single_source >= 0 && single_target >= 0) {
-            auto result = create_edit_mappings_single(single_source, single_target, graphs, edit_cost, ged_method, method_options, true);
-           return 0;
+        auto result = create_edit_mappings_single(single_source, single_target, graphs, edit_cost, ged_method, method_options, true);
+        return 0;
     }
     // ...existing code...
     else {
@@ -191,6 +237,24 @@ int main(int argc, const char * argv[]) {
             }
         }
     }
+    //sort graph_ids
+    std:ranges::sort(graph_ids
+                     ,
+                     [](const std::pair<INDEX, INDEX>& a, const std::pair<INDEX, INDEX>& b) {
+                         return a.first == b.first ? a.second < b.second : a.first < b.first;
+                     }
+        );
+
+    // remove all entries in graph_ids that also occur in existing_graph_ids (use that both are sorted)
+    std::erase_if(
+        graph_ids,
+        [&existing_graph_ids](const std::pair<INDEX, INDEX>& pair) {
+            return ranges::binary_search(existing_graph_ids, pair,
+                                         [](const std::pair<INDEX, INDEX>& a, const std::pair<INDEX, INDEX>& b) {
+                                             return a.first == b.first ? a.second < b.second : a.first < b.first;
+                                         });
+        }
+    );
 
     // Ensure base tmp directory exists
     std::filesystem::path base_tmp = output_path + db + "/tmp/";
@@ -202,7 +266,7 @@ int main(int argc, const char * argv[]) {
     if (threads == 1) {
         auto ged_env = ged::GEDEnv<ged::LabelID, ged::LabelID, ged::LabelID>();
         InitializeGEDEnvironment(ged_env, graphs, edit_cost, ged_method, method_options);
-        ComputeGEDResults(ged_env, graphs, graph_ids, base_tmp.string());
+        ComputeGEDResults(ged_env, graphs, graph_ids, base_tmp.string(), ged_method, method_options);
     }
     else {
         // Parallel execution: split graph_ids into more, smaller chunks
@@ -283,7 +347,7 @@ int main(int argc, const char * argv[]) {
     std::string search_string = "_ged_mapping";
     MergeGEDResults(output_path + db + "/tmp/", output_path + db + "/", search_string, graphs);
     // load mappings
-    std::vector<GEDEvaluation<UDataGraph>> results;
+    results.clear();
     BinaryToGEDResult(output_path + db + "/" + db + "_ged_mapping.bin", graphs, results);
     CSVFromGEDResults(output_path + db + "/" + db + "_ged_mapping.csv", results);
     return 0;

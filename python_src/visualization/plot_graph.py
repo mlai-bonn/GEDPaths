@@ -2,6 +2,8 @@ import argparse
 import os
 from typing import Optional
 
+from networkx.drawing.nx_agraph import pygraphviz_layout
+
 try:
     import torch
     from torch_geometric.data import InMemoryDataset
@@ -142,7 +144,7 @@ def plot_graph(data, title: Optional[str] = None, show_node_labels: bool = True,
         # Use Kamada-Kawai layout (often called "kawai/"kawaii" by typo)
         # It typically produces clearer layouts for small-to-medium graphs.
         try:
-            pos = nx.kamada_kawai_layout(G)
+            pos = pygraphviz_layout(G, prog='neato')
         except Exception:
             # Fallback to spring layout if kamada_kawai fails for some graph
             pos = nx.spring_layout(G)
@@ -337,8 +339,9 @@ def plot_edit_path(graphs, edit_ops, output=None, highlight_colors=None, show_la
                 pos = None
         if pos is None:
             try:
-                pos = nx.kamada_kawai_layout(G)
+                pos = pygraphviz_layout(G, prog='neato', root=0, args=' -Gmode="KK" -Nmaxiter=10000 ')
             except Exception:
+                print("pygraphviz_layout failed, falling back to spring_layout")
                 pos = nx.spring_layout(G)
 
         # prepare node labels

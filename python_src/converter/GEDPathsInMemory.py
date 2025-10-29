@@ -1,4 +1,3 @@
-# filepath: /home/florian/Documents/CodeProjectsGit/GNNGED/python_src/converter/GEDPathsInMemory.py
 """
 Utilities for edit-path BGF datasets.
 
