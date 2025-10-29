@@ -1,3 +1,8 @@
+// define gurobi
+#define GUROBI
+// use gedlib
+#define GEDLIB
+
 #include <filesystem>
 #include <iostream>
 #include <vector>
@@ -6,6 +11,8 @@
 #include <random>
 #include <algorithm>
 #include <libGraph.h>
+
+#include "src/create_edit_mappings.h"
 
 std::vector<int> CheckResultsValidity(const std::vector<GEDEvaluation<UDataGraph>>& results) {
     std::vector<int> invalids;
@@ -45,9 +52,14 @@ int main(int argc, const char * argv[]) {
     int num_threads = 1;
     // -method
     std::string method = "REFINE";
+    // -cost
+    auto cost = "CONSTANT";
     int source_id = -1;
     int target_id = -1;
     bool fix_broken_mappings = true;
+    auto ged_method = GEDMethodFromString(method);
+    auto edit_cost = EditCostsFromString(cost);
+    std::string method_options;
 
     for (int i = 1; i < argc; ++i) {
         if (std::string(argv[i]) == "-db" || std::string(argv[i]) == "-data" || std::string(argv[i]) == "-dataset" || std::string(argv[i]) == "-database") {
@@ -66,9 +78,30 @@ int main(int argc, const char * argv[]) {
             num_mappings = std::stoi(argv[i+1]);
             ++i;
         }
+        else if (std::string(argv[i]) == "-cost") {
+            cost =  argv[i+1];
+            edit_cost = EditCostsFromString(cost);
+            ++i;
+        }
         else if (std::string(argv[i]) == "-method") {
             method = argv[i+1];
+            ged_method = GEDMethodFromString(method);
             ++i;
+        }
+        else if (std::string(argv[i]) == "-method_options") {
+            // read method options in format option value option value ... until next  leading - or end of argv
+            int counter = 0;
+            while (i + 1 < argc && std::string(argv[i+1]).rfind('-', 0) != 0) {
+                // if current argv is option add -- prefix otherwise just add value
+                if (counter % 2 == 0) {
+                    method_options += "--" + std::string(argv[i+1]) + " ";
+                }
+                else {
+                    method_options += std::string(argv[i+1]) + " ";
+                }
+                counter++;
+                i++;
+            }
         }
         else if (std::string(argv[i]) == "-source_id") {
             source_id = std::stoi(argv[i+1]);
@@ -132,9 +165,14 @@ int main(int argc, const char * argv[]) {
     if (fix_broken_mappings) {
         // recalulate the mappings for the invalid results
         std::cout << "Recalculating mappings for invalid results...\n";
+        std::vector<GEDEvaluation<UDataGraph>> fixed_results;
         for (const auto &id : invalids) {
-            auto fixed_result = create_edit_mappings_single(single_source, single_target, graphs, edit_cost, ged_method, method_options, true);
+            auto source_id = results[id].graph_ids.first;
+            auto target_id = results[id].graph_ids.second;
+            auto fixed_result = create_edit_mappings_single(source_id, target_id, graphs, edit_cost, ged_method, method_options, true);
+            fixed_results.push_back(fixed_result);
         }
+        auto new_invalids = CheckResultsValidity(fixed_results);
 
     }
     // Filter out invalid results

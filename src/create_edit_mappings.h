@@ -17,7 +17,7 @@ GEDEvaluation<UDataGraph> create_edit_mappings_single(INDEX source_id, INDEX tar
 inline GEDEvaluation<UDataGraph> create_edit_mappings_single(INDEX source_id, INDEX target_id, GraphData<UDataGraph>& graphs, ged::Options::EditCosts edit_cost, ged::Options::GEDMethod ged_method, const std::string& method_options, bool print) {
     if (source_id >= graphs.graphData.size() || target_id >= graphs.graphData.size()) {
         std::cerr << "Single source/target IDs out of range: " << source_id << ", " << target_id << std::endl;
-        return 1;
+        exit(1);
     }
     std::pair<INDEX, INDEX> pair = std::minmax(source_id, target_id);
     std::vector<std::pair<INDEX, INDEX>> single_pair{pair};
