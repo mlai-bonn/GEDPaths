@@ -143,6 +143,7 @@ int main(const int argc, const char * argv[]) {
     std::filesystem::create_directory(output_path + "/" + db + "/tmp/");
 
 
-    create_edit_mappings(db, output_path, edit_cost, ged_method, method_options, graph_ids_path, num_pairs, num_threads, seed, single_source, single_target);
+    create_edit_mappings(db, output_path, input_path, processed_graph_path,
+        edit_cost, ged_method, method_options, graph_ids_path, num_pairs, num_threads, seed, single_source, single_target);
     return 0;
 }
