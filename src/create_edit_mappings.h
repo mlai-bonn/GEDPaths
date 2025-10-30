@@ -64,6 +64,38 @@ inline GEDEvaluation<UDataGraph> create_edit_mappings_single(INDEX source_id, IN
 
 }
 
+
+inline void fixInvalidMappings(std::vector<GEDEvaluation<UDataGraph>>& results,
+                               GraphData<UDataGraph>& graphs,
+                               ged::Options::EditCosts edit_cost,
+                               ged::Options::GEDMethod ged_method,
+                               const std::string& method_options) {
+
+    // try to correct invalid mappings
+    auto invalid_mappings = CheckResultsValidity(results);
+    std::cout << "Found " << invalid_mappings.size() << " invalid mappings.\n";
+    if (invalid_mappings.empty()) {
+        return;
+    }
+
+    // recalulate the mappings for the invalid results
+    std::cout << "Recalculating mappings for invalid results...\n";
+    std::vector<std::pair<INDEX, GEDEvaluation<UDataGraph>>> fixed_results;
+    for (const auto &id : invalid_mappings) {
+        auto source_id = results[id].graph_ids.first;
+        auto target_id = results[id].graph_ids.second;
+        auto fixed_result = create_edit_mappings_single(source_id, target_id, graphs, edit_cost, ged_method, method_options, false);
+        if (CheckResultsValidity(std::vector<GEDEvaluation<UDataGraph>>{fixed_result}).empty()) {
+            fixed_results.emplace_back(id, fixed_result);
+            std::cout << "  Fixed mapping for result id " << id << " (Graph IDs: " << source_id << ", " << target_id << ")\n";
+        }
+    }
+    // replace invalid results with fixed results
+    for (auto &[id, result] : fixed_results) {
+        results[id] = result;
+    }
+}
+
 inline int create_edit_mappings(const std::string& db,
                                 const std::string& output_path,
                                 const std::string& input_path,
@@ -100,26 +132,8 @@ inline int create_edit_mappings(const std::string& db,
         ranges::sort(existing_graph_ids, [](const std::pair<INDEX, INDEX>& a, const std::pair<INDEX, INDEX>& b) {
             return a.first == b.first ? a.second < b.second : a.first < b.first;
         });
-
-        // try to correct invalid mappings
-        auto invalid_mappings = CheckResultsValidity(results);
-
-        // recalulate the mappings for the invalid results
-        std::cout << "Recalculating mappings for invalid results...\n";
-        std::vector<std::pair<INDEX, GEDEvaluation<UDataGraph>>> fixed_results;
-        for (const auto &id : invalid_mappings) {
-            auto source_id = results[id].graph_ids.first;
-            auto target_id = results[id].graph_ids.second;
-            auto fixed_result = create_edit_mappings_single(source_id, target_id, graphs, edit_cost, ged_method, method_options, true);
-            if (CheckResultsValidity(std::vector<GEDEvaluation<UDataGraph>>{fixed_result}).empty()) {
-                fixed_results.emplace_back(id, fixed_result);
-                std::cout << "  Fixed mapping for result id " << id << " (Graph IDs: " << source_id << ", " << target_id << ")\n";
-            }
-        }
-        // replace invalid results with fixed results
-        for (auto &[id, result] : fixed_results) {
-            results[id] = result;
-        }
+        // fix invalid mappings
+        fixInvalidMappings(results, graphs, edit_cost, ged_method, method_options);
         // save the updated results back to binary
         GEDResultToBinary(output_path + "/" + db + "/", results);
     }
@@ -129,44 +143,43 @@ inline int create_edit_mappings(const std::string& db,
         auto result = create_edit_mappings_single(single_source, single_target, graphs, edit_cost, ged_method, method_options, true);
         return 0;
     }
-    // ...existing code...
-    else {
-        if (num_pairs > 0 && num_pairs <= graphs.graphData.size() * (graphs.graphData.size() - 1) / 2) {
-            std::uniform_int_distribution<INDEX> dist(0, graphs.graphData.size() - 1);
-            while (graph_ids.size() < num_pairs) {
-                // get random integer between 0 and graphs.GraphData.size() - 1
-                INDEX id1 = dist(gen);
-                // id2 should between id1 + 1 and graphs.GraphData.size() - 1
-                INDEX id2 = dist(gen);
-                if (id1 != id2) {
-                    std::pair<INDEX, INDEX> pair = std::minmax(id1, id2);
-                    if (ranges::find(graph_ids, pair) == graph_ids.end()) {
-                        graph_ids.emplace_back(pair);
-                    }
+
+    if (num_pairs > 0 && num_pairs <= graphs.graphData.size() * (graphs.graphData.size() - 1) / 2) {
+        std::uniform_int_distribution<INDEX> dist(0, graphs.graphData.size() - 1);
+        while (graph_ids.size() < num_pairs) {
+            // get random integer between 0 and graphs.GraphData.size() - 1
+            INDEX id1 = dist(gen);
+            // id2 should between id1 + 1 and graphs.GraphData.size() - 1
+            INDEX id2 = dist(gen);
+            if (id1 != id2) {
+                std::pair<INDEX, INDEX> pair = std::minmax(id1, id2);
+                if (ranges::find(graph_ids, pair) == graph_ids.end()) {
+                    graph_ids.emplace_back(pair);
                 }
             }
-            // sort graph ids by first and then second
-            ranges::sort(graph_ids, [](const std::pair<INDEX, INDEX>& a, const std::pair<INDEX, INDEX>& b) {
-                return a.first == b.first ? a.second < b.second : a.first < b.first;
-            });
-
-            // write to id file
-            std::string out_file = output_path + db + "/" + "graph_ids.txt";
-            std::ofstream id_file(out_file);
-            for (const auto& ids : graph_ids) {
-                id_file << ids.first << " " << ids.second << std::endl;
-            }
-            id_file.close();
-
         }
-        else {
-            for (auto i = 0; i < graphs.graphData.size(); ++i) {
-                for ( auto j = i + 1; j < graphs.graphData.size(); ++j) {
-                    graph_ids.emplace_back(i,j);
-                }
+        // sort graph ids by first and then second
+        ranges::sort(graph_ids, [](const std::pair<INDEX, INDEX>& a, const std::pair<INDEX, INDEX>& b) {
+            return a.first == b.first ? a.second < b.second : a.first < b.first;
+        });
+
+        // write to id file
+        std::string out_file = output_path + db + "/" + "graph_ids.txt";
+        std::ofstream id_file(out_file);
+        for (const auto& ids : graph_ids) {
+            id_file << ids.first << " " << ids.second << std::endl;
+        }
+        id_file.close();
+
+    }
+    else {
+        for (auto i = 0; i < graphs.graphData.size(); ++i) {
+            for ( auto j = i + 1; j < graphs.graphData.size(); ++j) {
+                graph_ids.emplace_back(i,j);
             }
         }
     }
+
     //sort graph_ids
     std:ranges::sort(graph_ids
                      ,
@@ -185,6 +198,8 @@ inline int create_edit_mappings(const std::string& db,
                                          });
         }
     );
+    // std::cout number of pairs to compute
+    std::cout << "Number of GED mappings to compute: " << graph_ids.size() << std::endl;
 
     // Ensure base tmp directory exists
     std::filesystem::path base_tmp = output_path + db + "/tmp/";
@@ -279,6 +294,10 @@ inline int create_edit_mappings(const std::string& db,
     // load mappings
     results.clear();
     BinaryToGEDResult(output_path + db + "/" + db + "_ged_mapping.bin", graphs, results);
+    // Fix invalid mappings that are still present (due to parallel execution issues in gedlib)
+    fixInvalidMappings(results, graphs, edit_cost, ged_method, method_options);
+    // save the updated results back to binary
+    GEDResultToBinary(output_path + "/" + db + "/", results);
     CSVFromGEDResults(output_path + db + "/" + db + "_ged_mapping.csv", results);
 
     return 1;
