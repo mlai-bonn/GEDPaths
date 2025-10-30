@@ -300,7 +300,7 @@ inline int create_edit_mappings(const std::string& db,
     GEDResultToBinary(output_path + "/" + db + "/", results);
     CSVFromGEDResults(output_path + db + "/" + db + "_ged_mapping.csv", results);
 
-    return 1;
+    return 0;
 }
 
 #endif //GEDPATHS_CREATE_EDIT_MAPPINGS_H

@@ -27,8 +27,10 @@ int main(int argc, const char * argv[]) {
     int num_threads = 1;
     // -method
     std::string method = "REFINE";
-    // -cost
-    auto cost = "CONSTANT";
+    std::string path_strategy = "Random";
+    EditPathStrategy edit_path_strategy = EditPathStrategy::Random;
+    bool connected_only = false;
+
     int source_id = -1;
     int target_id = -1;
     std::string method_options;
@@ -61,6 +63,14 @@ int main(int argc, const char * argv[]) {
         else if (std::string(argv[i]) == "-target_id") {
             target_id = std::stoi(argv[i+1]);
             ++i;
+        }
+        else if (std::string(argv[i]) == "-path_strategy") {
+            path_strategy = argv[i+1];
+            edit_path_strategy = EditPathStrategyFromString(path_strategy);
+            ++i;
+        }
+        else if (std::string(argv[i]) == "-connected_only") {
+            connected_only = true;
         }
         // add help
         else if (std::string(argv[i]) == "-help") {
@@ -122,6 +132,8 @@ int main(int argc, const char * argv[]) {
         std::cerr << "No valid results to process. Exiting.\n";
         return 1;
     }
+    std::cout << "Proceeding with " << valid_results.size() << " valid mappings out of " << results.size() << " total mappings.\n";
+
     if (num_mappings > 0 && num_mappings < static_cast<int>(valid_results.size())) {
         // shuffle valid_results and take first num_mappings
         std::ranges::shuffle(valid_results, std::mt19937(seed));
@@ -148,12 +160,12 @@ int main(int argc, const char * argv[]) {
         }
         std::vector<GEDEvaluation<UDataGraph>> single_result{*it};
         std::cout << "Erzeuge Edit-Path nur für Mapping zwischen Graph " << source_id << " und " << target_id << ".\n";
-        CreateAllEditPaths(single_result, graphs,  edit_path_output_db);
+        CreateAllEditPaths(single_result, graphs,  edit_path_output_db, connected_only, path_strategy);
         return 0;
     }
     // print info about number of valid results considered
     std::cout << "Creating edit paths for " << valid_results.size() << " valid mappings out of " << results.size() << " total mappings.\n";
-    CreateAllEditPaths(valid_results, graphs,  edit_path_output_db);
+    CreateAllEditPaths(valid_results, graphs,  edit_path_output_db, connected_only, path_strategy);
 
     return 0;
 }
