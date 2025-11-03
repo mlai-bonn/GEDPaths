@@ -7,6 +7,7 @@ from python_src.converter.GEDPathsInMemory import GEDPathsInMemoryDataset
 # Paths
 path_generation_strategy = "Rnd_d-IsoN"
 path_generation_strategy = "Rnd"
+path_generation_strategy = "i-E_d-IsoN_"
 root_dir = f"Results/Paths_{path_generation_strategy}/F2/MUTAG"
 processed_dir = f"{root_dir}/processed"
 edit_path_file = f"{root_dir}/MUTAG_edit_paths_data_current.txt"
