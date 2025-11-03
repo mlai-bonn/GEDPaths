@@ -1,6 +1,7 @@
 import argparse
 import os
 from typing import Optional
+import ast
 
 from networkx.drawing.nx_agraph import pygraphviz_layout
 
@@ -13,6 +14,7 @@ except Exception as e:
 
 import networkx as nx
 import matplotlib.pyplot as plt
+import matplotlib as mpl
 
 
 class _LoadedInMemoryDataset(InMemoryDataset):
@@ -81,6 +83,12 @@ def graph_to_networkx_with_edge_features(data):
     """
     # ensure edge_attr exists; to_networkx will attach attributes
     G = to_networkx(data, node_attrs=None, edge_attrs=['edge_attr'])
+    # Force undirected graph semantics for plotting/analysis
+    try:
+        G = nx.Graph(G)
+    except Exception:
+        # fallback: if conversion fails, keep original
+        pass
 
     # Build a labels dict for matplotlib drawing
     edge_labels = {}
@@ -127,7 +135,78 @@ def graph_to_networkx_with_edge_features(data):
     return G, edge_labels
 
 
-def plot_graph(data, title: Optional[str] = None, show_node_labels: bool = True, output: Optional[str] = None):
+def _draw_colored_edges(G, pos, edge_labels, op, ax, palette, edge_width=1.0):
+    """Draw edges using `palette`.
+    - Draw base light gray edges first.
+    - If an edge's label parses as an int, draw that edge thick and colored by palette[int % len(palette)].
+    - Otherwise draw the label text at the edge midpoint, colored by a categorical mapping.
+    """
+    # base faint edges
+    try:
+        nx.draw_networkx_edges(G, pos, edge_color='lightgray', edge_width=edge_width, ax=ax)
+    except Exception:
+        pass
+
+    edge_list_colored = []
+    edge_colors = []
+    edge_text_items = []
+    # iterate over actual graph edges to ensure consistent order and presence
+    for u, v in G.edges():
+        # look up label in either orientation
+        lbl = edge_labels.get((u, v), edge_labels.get((v, u), None))
+        if lbl is None:
+            continue
+        s = str(lbl)
+        # Try to parse the label safely. It can be a scalar string like '1', or a list-like '[1,2]'.
+        parsed_int = None
+        try:
+            val = ast.literal_eval(s)
+            # if it's a sequence, take first element
+            if isinstance(val, (list, tuple)) and len(val) > 0:
+                candidate = val[0]
+            else:
+                candidate = val
+            parsed_int = int(float(candidate))
+        except Exception:
+            # fallback: try to parse directly from the string as a number
+            try:
+                parsed_int = int(float(s))
+            except Exception:
+                parsed_int = None
+
+        if parsed_int is not None:
+            edge_list_colored.append((u, v))
+            edge_colors.append(palette[parsed_int % len(palette)])
+        else:
+            try:
+                midx = (pos[u][0] + pos[v][0]) / 2.0
+                midy = (pos[u][1] + pos[v][1]) / 2.0
+                edge_text_items.append((midx, midy, s))
+            except Exception:
+                continue
+
+    if edge_list_colored:
+        try:
+            edge_widths = [1 for _ in edge_list_colored]
+            # double edge width for if type is DELETE or relabel
+            nx.draw_networkx_edges(G, pos, edgelist=edge_list_colored, edge_color=edge_colors, width=edge_width, ax=ax)
+        except Exception:
+            pass
+        # When integer-labeled edges are present and colored, omit drawing any edge label text
+        return
+
+    if edge_text_items:
+        unique_texts = sorted(list({t for (_, _, t) in edge_text_items}))
+        mapping = {val: palette[i % len(palette)] for i, val in enumerate(unique_texts)}
+        for midx, midy, text in edge_text_items:
+            color = mapping.get(text, '#444444')
+            try:
+                ax.text(midx, midy, text, fontsize=8, color=color, ha='center', va='center', bbox=dict(facecolor='white', edgecolor='none', alpha=0.7))
+            except Exception:
+                pass
+
+
+def plot_graph(data, title: Optional[str] = None, show_node_labels: bool = True, output: Optional[str] = None, color_nodes_by_label: bool = True):
     # Convert to networkx and prepare labels
     G, edge_labels = graph_to_networkx_with_edge_features(data)
 
@@ -149,40 +228,99 @@ def plot_graph(data, title: Optional[str] = None, show_node_labels: bool = True,
             # Fallback to spring layout if kamada_kawai fails for some graph
             pos = nx.spring_layout(G)
 
-    # Prepare node labels from attributes if requested
+    # Prepare node labels from attributes if requested.
+    # We remove node ids from the inside labels (they will be shown outside).
     node_labels = None
     if show_node_labels:
         try:
             if hasattr(data, 'x') and data.x is not None:
                 x = data.x
-                # handle 1-D or 2-D numeric arrays
+                # handle 1-D or 2-D numeric arrays -> only show the attribute values inside the node
                 if x.ndim == 1:
-                    node_labels = {i: f"{i}: {float(x[i]):.3g}" for i in range(x.shape[0])}
+                    node_labels = {i: f"{float(x[i]):.3g}" for i in range(x.shape[0])}
                 elif x.ndim == 2 and x.shape[1] == 1:
-                    node_labels = {i: f"{i}: {float(x[i,0]):.3g}" for i in range(x.shape[0])}
+                    node_labels = {i: f"{float(x[i,0]):.3g}" for i in range(x.shape[0])}
                 elif x.ndim == 2 and x.shape[1] <= 4:
-                    node_labels = {i: f"{i}: [" + ','.join(f"{float(v):.3g}" for v in x[i].flatten()) + "]" for i in range(x.shape[0])}
+                    node_labels = {i: '[' + ','.join(f"{float(v):.3g}" for v in x[i].flatten()) + ']' for i in range(x.shape[0])}
                 else:
                     try:
-                        node_labels = {i: f"{i}: [" + ','.join(f"{float(v):.3g}" for v in x[i].flatten()[:6]) + "]" for i in range(x.shape[0])}
+                        node_labels = {i: '[' + ','.join(f"{float(v):.3g}" for v in x[i].flatten()[:6]) + ']' for i in range(x.shape[0])}
                     except Exception:
-                        node_labels = {i: str(i) for i in range(G.number_of_nodes())}
+                        node_labels = None
             else:
-                node_labels = {i: str(i) for i in range(G.number_of_nodes())}
+                # No node attributes -> do not draw any label inside the node
+                node_labels = None
         except Exception:
-            node_labels = {i: str(i) for i in range(G.number_of_nodes())}
+            node_labels = None
 
-    plt.figure(figsize=(8, 6))
     # draw nodes and edges
-    nx.draw_networkx_nodes(G, pos, node_color='lightblue')
-    nx.draw_networkx_edges(G, pos, edge_color='gray')
-    # draw node labels if prepared
-    if node_labels is not None:
-        nx.draw_networkx_labels(G, pos, labels=node_labels, font_size=8)
+    # If requested, color nodes by their integer labels (0,1,2,...) using a fixed tab20 palette.
+    # If node labels are not integer-like, fall back to categorical mapping.
+    colored_legend = None
+    palette = [mpl.colors.to_hex(c) for c in plt.get_cmap('tab20').colors]
+    if color_nodes_by_label and node_labels is not None:
+        node_order = list(G.nodes())
+        vals = [node_labels.get(n) for n in node_order]
+        # try parse as integers
+        int_vals = []
+        all_int = True
+        for v in vals:
+            try:
+                iv = int(float(v))
+                int_vals.append(iv)
+            except Exception:
+                all_int = False
+                break
 
-    # draw edge labels if any
-    if edge_labels:
-        nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels, font_size=8)
+        if all_int and len(int_vals) > 0:
+            # direct integer->color mapping (value modulo palette size)
+            colors_hex = [palette[iv % len(palette)] for iv in int_vals]
+            nx.draw_networkx_nodes(G, pos, nodelist=node_order, node_color=colors_hex)
+            # legend: show only unique integer categories present
+            unique_ints = sorted(set(int_vals))
+            legend_items = [(str(i), palette[i % len(palette)]) for i in unique_ints]
+            colored_legend = ('categorical', legend_items)
+        else:
+            # fallback categorical mapping
+            unique = sorted(list(dict.fromkeys(vals)))
+            mapping = {val: palette[i % len(palette)] for i, val in enumerate(unique)}
+            colors_hex = [mapping.get(v, '#cccccc') for v in vals]
+            nx.draw_networkx_nodes(G, pos, nodelist=node_order, node_color=colors_hex)
+            legend_items = [(val, mapping[val]) for val in unique]
+            colored_legend = ('categorical', legend_items)
+    else:
+        nx.draw_networkx_nodes(G, pos, node_color='lightblue')
+
+    nx.draw_networkx_edges(G, pos, edge_color='gray')
+    # draw edge colors/labels using helper (colors and optional labels)
+    _draw_colored_edges(G, pos, edge_labels, plt.gca(), palette, edge_width=standard_edge_width)
+
+    # draw labels: inside labels (bold black) show node attributes; outside ids (bold red) show node indices
+    if node_labels is not None and (not color_nodes_by_label):
+        # draw the label inside the node on top of the node marker (bold, black)
+        nx.draw_networkx_labels(G, pos, labels=node_labels, font_size=8, font_color='black', font_weight='bold')
+
+    # always draw node ids outside the nodes (bold, red)
+    try:
+        xs = [p[0] for p in pos.values()]
+        ys = [p[1] for p in pos.values()]
+        dx = (max(xs) - min(xs)) if xs else 1.0
+        dy = (max(ys) - min(ys)) if ys else 1.0
+        off = 0.03 * max(dx, dy, 1.0)
+        pos_ids = {n: (pos[n][0] + off, pos[n][1] + off) for n in G.nodes()}
+        id_labels = {n: str(n) for n in G.nodes()}
+        nx.draw_networkx_labels(G, pos_ids, labels=id_labels, font_size=8, font_color='red', font_weight='bold')
+    except Exception:
+        pass
+
+    # if we prepared a legend for colored nodes (or edges), add it on the right
+    if colored_legend is not None:
+        kind, payload = colored_legend
+        fig = plt.gcf()
+        if kind == 'categorical':
+            import matplotlib.patches as mpatches
+            patches = [mpatches.Patch(color=col, label=str(lbl)) for lbl, col in payload]
+            plt.gca().legend(handles=patches, bbox_to_anchor=(1.02, 1), loc='upper left', borderaxespad=0.)
 
     if title:
         # Add number of nodes and edges to the plot title
@@ -224,7 +362,7 @@ def plot_graph(data, title: Optional[str] = None, show_node_labels: bool = True,
         plt.show()
 
 
-def plot_edit_path(graphs, edit_ops, output=None, highlight_colors=None, show_labels=True, one_fig_per_step = False):
+def plot_edit_path(graphs, edit_ops, output=None, highlight_colors=None, show_labels=True, one_fig_per_step = False, color_nodes_by_label: bool = True):
     """
     Visualize an edit path between two graphs.
     Args:
@@ -249,6 +387,8 @@ def plot_edit_path(graphs, edit_ops, output=None, highlight_colors=None, show_la
             'edge_delete': 'magenta',
             'edge_subst': 'yellow',
             'none': 'gray',
+            'delete': 'red',
+            'Delete': 'red',
         }
 
     # helper to parse an edit operation into a unified dict
@@ -321,13 +461,104 @@ def plot_edit_path(graphs, edit_ops, output=None, highlight_colors=None, show_la
                 res['type'] = s
             return res
 
+        # list-like: [object, ids or id, operation type]
+        if isinstance(op, list):
+            # expecting 3 elements
+            if len(op) == 3:
+                obj = op[0]
+                ids = op[1]
+                typ = op[2]
+                res['type'] = str(typ)
+                if obj in ('node', 'nodes', 'NODE'):
+                    if isinstance(ids, (list, tuple, set)):
+                        res['nodes'] = set(int(x) for x in ids)
+                    else:
+                        try:
+                            res['nodes'] = {int(ids)}
+                        except Exception:
+                            pass
+                elif obj in ('edge', 'edges', 'EDGE'):
+                    e_set = set()
+                    # format is id1--id2
+                    ids = ids.split('--')
+                    try:
+                        e_set.add((int(ids[0]), int(ids[1])))
+                    except Exception:
+                        pass
+                    res['edges'] = e_set
+                return res
+
         # fallback
         return res
 
-    # small helper that draws a single graph on the provided Axes and applies highlights
-    def _draw_graph_on_ax(data, ax, title=None, show_node_labels=True, op=None):
-        G, edge_labels = graph_to_networkx_with_edge_features(data)
+    # New helper: format an edit op into a human-readable title like
+    # "Insert Node 5", "Delete Edge 1 - 2", "Relabel Node 3" or "Initial".
+    def _format_edit_op(op):
+        parsed = _parse_edit_op(op)
+        typ = str(parsed.get('type', 'none')).lower()
 
+        # determine action
+        action = None
+        if any(k in typ for k in ('insert', 'add', 'create')):
+            action = 'Insert'
+        elif any(k in typ for k in ('delete', 'del', 'remove')):
+            action = 'Delete'
+        elif any(k in typ for k in ('sub', 'relabel', 'replace', 'subst')):
+            action = 'Relabel'
+        elif typ and typ != 'none':
+            # fallback: capitalize first token
+            action = typ.replace('_', ' ').capitalize()
+        else:
+            action = None
+
+        # determine target (node(s) or edge(s))
+        nodes = parsed.get('nodes', set())
+        edges = parsed.get('edges', set())
+
+        if nodes and not edges:
+            # one or more nodes
+            node_list = sorted(nodes)
+            if len(node_list) == 1:
+                target = f"Node {node_list[0]}"
+            else:
+                target = "Nodes " + ",".join(str(n) for n in node_list)
+        elif edges:
+            # show first edge or comma-separated list
+            edge_list = sorted(list(edges))
+            # pick representative: prefer a single pair
+            rep = edge_list[0]
+            try:
+                u, v = rep
+                target = f"Edge {u} - {v}"
+            except Exception:
+                target = "Edge"
+        else:
+            # no explicit nodes/edges provided; try infer from textual type
+            if 'node' in typ:
+                target = 'Node'
+            elif 'edge' in typ:
+                target = 'Edge'
+            else:
+                target = ''
+
+        if action is None and not target:
+            return 'Initial'
+
+        if action and target:
+            return f"{action} {target}"
+        elif action:
+            return action
+        elif target:
+            return target
+        else:
+            return 'Initial'
+
+    # small helper that draws a single graph on the provided Axes and applies highlights
+    # accepts an optional `color_mapping` which is either ('numeric', bins, palette) or ('categorical', mapping_dict, palette)
+    def _draw_graph_on_ax(data, ax, title=None, show_node_labels=True, op=None, show_node_ids_outside=True, color_nodes_by_label=True, color_mapping=None):
+        G, edge_labels = graph_to_networkx_with_edge_features(data)
+        standard_edge_width = 2.0
+        standard_node_size = 100
         # determine positions (try node features first, else layout)
         pos = None
         if hasattr(data, 'x') and data.x is not None:
@@ -350,21 +581,25 @@ def plot_edit_path(graphs, edit_ops, output=None, highlight_colors=None, show_la
             try:
                 if hasattr(data, 'x') and data.x is not None:
                     x = data.x
+                    # handle 1-D or 2-D numeric arrays -> only show the attribute values inside the node
                     if x.ndim == 1:
-                        node_labels = {i: f"{i}: {float(x[i]):.3g}" for i in range(x.shape[0])}
+                        node_labels = {i: f"{float(x[i]):.3g}" for i in range(x.shape[0])}
                     elif x.ndim == 2 and x.shape[1] == 1:
-                        node_labels = {i: f"{i}: {float(x[i,0]):.3g}" for i in range(x.shape[0])}
+                        node_labels = {i: f"{float(x[i,0]):.3g}" for i in range(x.shape[0])}
                     elif x.ndim == 2 and x.shape[1] <= 4:
-                        node_labels = {i: f"{i}: [" + ','.join(f"{float(v):.3g}" for v in x[i].flatten()) + "]" for i in range(x.shape[0])}
+                        node_labels = {i: '[' + ','.join(f"{float(v):.3g}" for v in x[i].flatten()) + ']' for i in range(x.shape[0])}
                     else:
                         try:
-                            node_labels = {i: f"{i}: [" + ','.join(f"{float(v):.3g}" for v in x[i].flatten()[:6]) + "]" for i in range(x.shape[0])}
+                            node_labels = {i: '[' + ','.join(f"{float(v):.3g}" for v in x[i].flatten()[:6]) + ']' for i in range(x.shape[0])}
                         except Exception:
                             node_labels = {i: str(i) for i in range(G.number_of_nodes())}
                 else:
                     node_labels = {i: str(i) for i in range(G.number_of_nodes())}
             except Exception:
                 node_labels = {i: str(i) for i in range(G.number_of_nodes())}
+
+
+
 
         # compute highlight sets from op
         parsed = _parse_edit_op(op)
@@ -377,42 +612,211 @@ def plot_edit_path(graphs, edit_ops, output=None, highlight_colors=None, show_la
             normalized_edge_set.add((u, v))
             normalized_edge_set.add((v, u))
 
-        # choose color for op_type fallback
-        op_color = highlight_colors.get(op_type, highlight_colors.get('none', 'gray'))
-
         # draw on the provided axis: draw defaults first, then overlay highlighted nodes/edges
         ax.clear()
-        # draw all nodes with default color
-        nx.draw_networkx_nodes(G, pos, node_color='lightblue', ax=ax)
-        # draw highlighted nodes on top (if any and present in G)
-        try:
-            highlighted_nodes_present = [n for n in highlight_node_set if n in G.nodes()]
-            if highlighted_nodes_present:
-                nx.draw_networkx_nodes(G, pos, nodelist=highlighted_nodes_present, node_color=op_color, ax=ax)
-        except Exception:
-            pass
+        colored_legend = None
 
-        # draw all edges with default color
-        nx.draw_networkx_edges(G, pos, edge_color='gray', ax=ax)
-        # draw highlighted edges thicker and colored
-        try:
-            highlighted_edges_present = [e for e in G.edges() if (e[0], e[1]) in normalized_edge_set or (e[1], e[0]) in normalized_edge_set]
-            if highlighted_edges_present:
-                nx.draw_networkx_edges(G, pos, edgelist=highlighted_edges_present, edge_color=op_color, width=2.0, ax=ax)
-        except Exception:
-            pass
 
-        if node_labels is not None:
-            nx.draw_networkx_labels(G, pos, labels=node_labels, font_size=8, ax=ax)
+        # draw network nodes borders for operations (nodes with bigger sizes)
+        hex_white = mpl.colors.to_hex(mpl.colors.to_rgb('black'))
+        border_colors = [hex_white for _ in G.nodes()]
+        border_factor = 4
+        node_sizes = [standard_node_size for _ in G.nodes()]
+        if op is not None:
+            if op_type in ('DELETE', 'node_delete', 'Delete'):
+                if parsed.get('nodes'):
+                    n = list(parsed.get('nodes'))[0]
+                    border_colors[n] = mpl.colors.to_hex(mpl.colors.to_rgb('red'))
+                    node_sizes[n] = int(border_factor * standard_node_size)
+            elif op_type in ('RELABEL', 'node_subst', 'Relabel'):
+                if parsed.get('nodes'):
+                    n = list(parsed.get('nodes'))[0]
+                    border_colors[n] = mpl.colors.to_hex(mpl.colors.to_rgb('black'))
+                    node_sizes[n] = border_factor * standard_node_size
+            elif op_type in ('INSERT', 'node_insert', 'Insert'):
+                if parsed.get('edges'):
+                    source, target = list(parsed.get('edges'))[0]
+                    border_colors[source] = mpl.colors.to_hex(mpl.colors.to_rgb('green'))
+                    node_sizes[source] = border_factor * standard_node_size
+                    border_colors[target] = mpl.colors.to_hex(mpl.colors.to_rgb('green'))
+                    node_sizes[target] = border_factor * standard_node_size
+
+        nx.draw_networkx_nodes(G, pos, node_color=border_colors, node_size=node_sizes, ax=ax)
+
+        # draw nodes colored by label if requested
+        if color_nodes_by_label and node_labels is not None:
+            node_order = list(G.nodes())
+            vals = [node_labels.get(n) for n in node_order]
+            # prepare palette
+            palette_local = [mpl.colors.to_hex(c) for c in plt.get_cmap('tab20').colors]
+            # If a global color_mapping is provided, honor it (categorical mapping or numeric bins)
+            if color_mapping is not None:
+                kind = color_mapping[0]
+                if kind == 'numeric':
+                    bins = color_mapping[1]; pal = color_mapping[2]
+                    colors_hex = []
+                    for v in vals:
+                        try:
+                            fv = float(v)
+                            b = 0
+                            for i in range(len(bins) - 1):
+                                if fv >= bins[i] and fv <= bins[i + 1]:
+                                    b = i; break
+
+                            colors_hex.append(pal[b % len(pal)])
+                        except Exception:
+                            colors_hex.append('#cccccc')
+                    nx.draw_networkx_nodes(G, pos, nodelist=node_order, node_color=colors_hex, node_size=standard_node_size, ax=ax)
+                    # prepare legend from bins
+                    legend_items = [(f"{bins[i]:.3g}–{bins[i+1]:.3g}", pal[i % len(pal)]) for i in range(len(bins)-1)]
+                    colored_legend = ('categorical', legend_items)
+                elif kind == 'categorical':
+                    mapping = color_mapping[1]; pal = color_mapping[2]
+                    colors_hex = [mapping.get(v, '#cccccc') for v in vals]
+                    nx.draw_networkx_nodes(G, pos, nodelist=node_order, node_color=colors_hex, node_size=standard_node_size, ax=ax)
+                    legend_items = [(lbl, mapping[lbl]) for lbl in mapping.keys()]
+                    colored_legend = ('categorical', legend_items)
+                else:
+                    # unknown color_mapping form -> fallback to local integer/categorical logic below
+                    color_mapping = None
+
+            if color_mapping is None:
+                # Try integer mapping: parse each label as int(float(v)). If all succeed, map directly using palette index.
+                int_vals = []
+                all_int = True
+                for v in vals:
+                    try:
+                        iv = int(float(v))
+                        int_vals.append(iv)
+                    except Exception:
+                        all_int = False
+                        break
+
+                if all_int and len(int_vals) > 0:
+                    colors_hex = [palette_local[iv % len(palette_local)] for iv in int_vals]
+                    nx.draw_networkx_nodes(G, pos, nodelist=node_order, node_color=colors_hex, node_size=standard_node_size, ax=ax)
+                    unique_ints = sorted(set(int_vals))
+                    legend_items = [(str(i), palette_local[i % len(palette_local)]) for i in unique_ints]
+                    colored_legend = ('categorical', legend_items)
+                else:
+                    # fallback categorical mapping using the string values
+                    unique = sorted(list(dict.fromkeys(vals)))
+                    mapping = {val: palette_local[i % len(palette_local)] for i, val in enumerate(unique)}
+                    colors_hex = [mapping.get(v, '#cccccc') for v in vals]
+                    nx.draw_networkx_nodes(G, pos, nodelist=node_order, node_color=colors_hex, node_size=standard_node_size, ax=ax)
+                    legend_items = [(val, mapping[val]) for val in unique]
+                    colored_legend = ('categorical', legend_items)
+        else:
+            nx.draw_networkx_nodes(G, pos, node_color='lightblue', ax=ax)
+
+        # prepare palette for tab20
+        palette = [mpl.colors.to_hex(c) for c in plt.get_cmap('tab20').colors]
+        edge_widths = [1 for _ in G.edges()]
+        edge_colors = [mpl.colors.to_hex(mpl.colors.to_rgb('lightgray')) for _ in G.edges()]
+        # double edge width for if type is DELETE or relabel
+        if parsed and parsed['edges']:
+            for i, (u, v) in enumerate(G.edges()):
+                if (u, v) in normalized_edge_set:
+                    edge_widths[i] = 5.0
+                    edge_colors[i] = mpl.colors.to_hex(mpl.colors.to_rgb('red'))
+        nx.draw_networkx_edges(G, pos, width=edge_widths, edge_color=edge_colors, ax=ax)
+        # draw edge colors/labels using helper (colors and optional labels)
         if edge_labels:
-            nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels, font_size=8, ax=ax)
+            _draw_colored_edges(G, pos, edge_labels, parsed, ax, palette, edge_width=standard_edge_width)
 
-        if title:
-            ax.set_title(f"{title}")
-        ax.set_axis_off()
+        # draw labels: inside labels (bold black) show node attributes; outside ids (bold red) show node indices
+        if node_labels is not None and (not color_nodes_by_label):
+            # draw the label inside the node on top of the node marker (bold, black)
+            nx.draw_networkx_labels(G, pos, labels=node_labels, font_size=8, font_color='black', font_weight='bold', ax=ax)
+
+        # always draw node ids outside the nodes (bold, red)
+        try:
+            xs = [p[0] for p in pos.values()]
+            ys = [p[1] for p in pos.values()]
+            dx = (max(xs) - min(xs)) if xs else 1.0
+            dy = (max(ys) - min(ys)) if ys else 1.0
+            off = 0.03 * max(dx, dy, 1.0)
+            pos_ids = {n: (pos[n][0] + off, pos[n][1] + off) for n in G.nodes()}
+            id_labels = {n: str(n) for n in G.nodes()}
+            nx.draw_networkx_labels(G, pos_ids, labels=id_labels, font_size=8, font_color='red', font_weight='bold', ax=ax)
+        except Exception:
+            pass
+
+        # return legend info (kind, payload) so caller can place a single legend on the figure if desired
+        # Set the axis title to the formatted operation string (user requested)
+        try:
+            title_text = None
+            # Prefer an explicit op description if provided
+            if op is not None:
+                title_text = _format_edit_op(op)
+            # fall back to caller-provided title
+            if (title_text is None or title_text == '') and title:
+                title_text = title
+            if title_text is None or title_text == '':
+                title_text = 'Initial'
+            ax.set_title(title_text)
+        except Exception:
+            try:
+                if title:
+                    ax.set_title(str(title))
+            except Exception:
+                pass
+
+        return colored_legend
 
     if n_steps == 0:
         raise ValueError("No graphs provided to plot_edit_path")
+
+    # Build a global color_mapping across all graphs so colors are consistent across steps
+    global_color_mapping = None
+    if color_nodes_by_label:
+        all_vals = []
+        all_numeric = True
+        numeric_list = []
+        import numpy as np
+        for g in graphs:
+            try:
+                if hasattr(g, 'x') and g.x is not None:
+                    try:
+                        x = g.x.detach().cpu().numpy()
+                    except Exception:
+                        x = np.array(g.x)
+                    if hasattr(x, 'ndim') and x.ndim == 1:
+                        vals_g = [f"{float(x[i]):.3g}" for i in range(x.shape[0])]
+                    elif hasattr(x, 'ndim') and x.ndim == 2 and x.shape[1] == 1:
+                        vals_g = [f"{float(x[i,0]):.3g}" for i in range(x.shape[0])]
+                    elif hasattr(x, 'ndim') and x.ndim >= 2:
+                        vals_g = ['[' + ','.join(f"{float(v):.3g}" for v in x[i].flatten()) + ']' for i in range(x.shape[0])]
+                    else:
+                        vals_g = []
+                else:
+                    vals_g = []
+            except Exception:
+                vals_g = []
+            for v in vals_g:
+                all_vals.append(v)
+                try:
+                    numeric_list.append(float(v))
+                except Exception:
+                    all_numeric = False
+
+        palette_local = [mpl.colors.to_hex(c) for c in plt.get_cmap('tab20').colors]
+        if all_vals:
+            if all_numeric:
+                nbins = min(len(palette_local), 8)
+                if numeric_list:
+                    vmin = min(numeric_list); vmax = max(numeric_list)
+                else:
+                    vmin = 0.0; vmax = 0.0
+                if vmin == vmax:
+                    bins = [vmin - 0.5, vmin + 0.5]
+                else:
+                    bins = list(np.linspace(vmin, vmax, nbins + 1))
+                global_color_mapping = ('numeric', bins, palette_local)
+            else:
+                unique_all = sorted(list(dict.fromkeys(all_vals)))
+                mapping = {val: palette_local[i % len(palette_local)] for i, val in enumerate(unique_all)}
+                global_color_mapping = ('categorical', mapping, palette_local)
 
     if one_fig_per_step:
         # produce one file (or show) per step using the internal drawer so we can apply highlights
@@ -425,7 +829,7 @@ def plot_edit_path(graphs, edit_ops, output=None, highlight_colors=None, show_la
                 title = f"Step {step}" + f": {edit_ops[step-1]}"
 
             fig, ax = plt.subplots(figsize=(8, 6))
-            _draw_graph_on_ax(data, ax, title=title, show_node_labels=show_labels, op=op)
+            legend_info = _draw_graph_on_ax(data, ax, title=title, show_node_labels=show_labels, op=op, show_node_ids_outside=True, color_nodes_by_label=color_nodes_by_label, color_mapping=global_color_mapping)
 
             single_output = None
             if output:
@@ -438,39 +842,68 @@ def plot_edit_path(graphs, edit_ops, output=None, highlight_colors=None, show_la
                     if ext == '':
                         ext = '.png'
                     single_output = f"{root}_step{step}{ext}"
+                # add legend if needed for this single figure
+                if legend_info is not None:
+                    kind, payload = legend_info
+                    fig.subplots_adjust(right=0.78)
+                    if kind == 'colorbar':
+                        fig.colorbar(payload, ax=ax, fraction=0.046, pad=0.04)
+                    elif kind == 'categorical':
+                        import matplotlib.patches as mpatches
+                        patches = [mpatches.Patch(color=mpl.colors.to_hex(col), label=str(lbl)) for lbl, col in payload]
+                        ax.legend(handles=patches, bbox_to_anchor=(1.02, 1), loc='upper left', borderaxespad=0.)
                 fig.savefig(single_output, dpi=300)
                 print(f"Saved edit path step to: {single_output}")
                 plt.close(fig)
             else:
                 plt.show()
     else:
-        # single figure with subplots for each step
-        cols = int(ceil(sqrt(n_steps)))
+        # single figure with subplots for each step: arrange into rows with max 5 columns
+        max_cols = 5
+        cols = min(max_cols, n_steps)
         rows = int(ceil(n_steps / cols))
+        # figure size scales with number of columns and rows
         fig, axes = plt.subplots(rows, cols, figsize=(4 * cols, 3 * rows))
-        # flatten axes
-        if isinstance(axes, (list, tuple)):
-            ax_list = [a for a in axes]
+        # flatten axes regardless of shape
+        import numpy as _np
+        if rows == 1 and cols == 1:
+            ax_list = [axes]
         else:
             try:
-                ax_list = axes.flatten().tolist()
+                ax_list = list(_np.array(axes).flatten())
             except Exception:
-                ax_list = [axes]
+                # final fallback: try to iterate
+                try:
+                    ax_list = [a for a in axes]
+                except Exception:
+                    ax_list = [axes]
 
+        legend_info = None
         for i in range(rows * cols):
             if i < n_steps:
                 ax = ax_list[i]
                 data = graphs[i]
                 op = edit_ops[i] if i < len(edit_ops) else None
-                title = None
-                if i > 0:
-                    title = f"Step {i}" + f": {edit_ops[i-1]}"
-                _draw_graph_on_ax(data, ax, title=title, show_node_labels=show_labels, op=op)
+                title = None if i < len(edit_ops) else f"Target Graph"
+                li = _draw_graph_on_ax(data, ax, title=title, show_node_labels=show_labels, op=op, show_node_ids_outside=True, color_nodes_by_label=color_nodes_by_label, color_mapping=global_color_mapping)
+                if legend_info is None and li is not None:
+                    legend_info = li
             else:
                 ax = ax_list[i]
                 ax.set_visible(False)
 
         plt.tight_layout()
+        # if we have a legend for colored nodes, place it on the figure's right
+        if color_nodes_by_label and legend_info is not None:
+            kind, payload = legend_info
+            fig.subplots_adjust(right=0.78)
+            if kind == 'colorbar':
+                fig.colorbar(payload, ax=axes, fraction=0.046, pad=0.04)
+            elif kind == 'categorical':
+                import matplotlib.patches as mpatches
+                patches = [mpatches.Patch(color=mpl.colors.to_hex(col), label=str(lbl)) for lbl, col in payload]
+                fig.legend(handles=patches, bbox_to_anchor=(0.98, 0.5), loc='center left')
+
         if output:
             out_path = output
             if os.path.isdir(output) or output.endswith(os.path.sep):
@@ -495,6 +928,7 @@ def main():
     group.add_argument('--name', type=str, help='bgf_name of the graph to plot (searches the dataset)')
     parser.add_argument('--output', '-o', help='If provided, save the figure to this path (e.g. out.png)')
     parser.add_argument('--no-node-labels', dest='node_labels', action='store_false', help='Do not draw node labels')
+    parser.add_argument('--no-color-nodes-by-label', dest='color_nodes_by_label', action='store_false', help='Do not color nodes by label; show labels inside nodes instead')
     args = parser.parse_args()
 
     # resolve processed path
@@ -510,7 +944,7 @@ def main():
         data = load_data_by_index(processed, idx)
         title = f"Graph '{args.name}' (index {idx})"
 
-    plot_graph(data, title=title, show_node_labels=args.node_labels, output=args.output)
+    plot_graph(data, title=title, show_node_labels=args.node_labels, output=args.output, color_nodes_by_label=args.color_nodes_by_label)
 
 
 if __name__ == '__main__':

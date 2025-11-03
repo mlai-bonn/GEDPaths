@@ -5,9 +5,11 @@ from plot_graph import plot_edit_path, find_processed_pt
 from python_src.converter.GEDPathsInMemory import GEDPathsInMemoryDataset
 
 # Paths
-root_dir = "Results/Paths/F2/MUTAG/"
-processed_dir = "Results/Paths/F2/MUTAG/processed"
-edit_path_file = "Results/Paths/F2/MUTAG/MUTAG_edit_paths_data.txt"
+path_generation_strategy = "Rnd_d-IsoN"
+path_generation_strategy = "Rnd"
+root_dir = f"Results/Paths_{path_generation_strategy}/F2/MUTAG"
+processed_dir = f"{root_dir}/processed"
+edit_path_file = f"{root_dir}/MUTAG_edit_paths_data_current.txt"
 
 # Load processed dataset
 processed_pt = find_processed_pt(processed_dir)
@@ -15,7 +17,7 @@ assert processed_pt is not None, f"Processed .pt file not found in {processed_di
 ds = GEDPathsInMemoryDataset(root_dir, path=processed_pt, edit_path_data=edit_path_file)
 
 start = 0
-end = 6
+end = 16
 path_graphs = ds.get_path_graphs(start, end)
 tmp_edit_operations = ds.get_path_operations(start, end)
 edit_operations = []

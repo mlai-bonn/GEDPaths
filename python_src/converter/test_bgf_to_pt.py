@@ -2,7 +2,9 @@ from os.path import dirname
 from python_src.converter.torch_geometric_exporter import BGFInMemoryDataset
 
 if __name__ == "__main__":
-    bgf_path = "Results/Paths/F2/MUTAG/MUTAG_edit_paths.bgf"
+    strategy = "Rnd_d-IsoN"
+    strategy = "Rnd"
+    bgf_path = f"Results/Paths_{strategy}/F2/MUTAG/MUTAG_edit_paths.bgf"
     # Use the directory containing the bgf as the dataset root so the processed file
     # will be written to <root>/processed/data.pt
     root_dir = dirname(bgf_path) or "."

@@ -620,6 +620,7 @@ def main():
     parser = argparse.ArgumentParser(description='Plot edit path statistics CSVs')
     parser.add_argument('directory', nargs='?', default='Results/Paths/F2/MUTAG/Evaluation',
                         help='Directory containing CSV files (Evaluation folder). Defaults to %(default)s')
+    parser.add_argument('--strategy', default="Rnd_d-IsoN"),
     parser.add_argument('--save', dest='save', action='store_true', help='Save plots as PNGs (default)')
     parser.add_argument('--no-save', dest='save', action='store_false', help='Do not save plots')
     parser.set_defaults(save=True)
@@ -628,8 +629,14 @@ def main():
     args = parser.parse_args()
 
     directory = args.directory
+
+    # replace Paths in the directory with Paths_strategy if strategy is specified
+    if args.strategy:
+        directory = directory.replace('Paths', f'Paths_{args.strategy}')
+
     if not os.path.isdir(directory):
         print(f"Directory not found: {directory}")
+        print("Try to run the analyze_edit_path_graphs.cpp first to generate the Evaluation folder with CSVs.")
         sys.exit(1)
 
     # set python output directory as a sibling to the evaluation folder (same level as Evaluation)

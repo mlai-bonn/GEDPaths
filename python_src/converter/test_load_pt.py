@@ -3,12 +3,13 @@ import os
 from os.path import dirname
 
 from python_src.converter.GEDPathsInMemory import GEDPathsInMemoryDataset
-from python_src.converter.torch_geometric_exporter import load_bgf_two_pass_to_pyg_data_list_numpy, BGFInMemoryDataset
+from python_src.converter.torch_geometric_exporter import BGFInMemoryDataset
 import torch
 
 if __name__ == "__main__":
-    bgf_path = "Results/Paths/F2/MUTAG/MUTAG_edit_paths.bgf"
-    edit_operation_path = "Results/Paths/F2/MUTAG/MUTAG_edit_path_data.txt"
+    strategy = "Rnd_d-IsoN"
+    bgf_path = f"Results/Paths_{strategy}/F2/MUTAG/MUTAG_edit_paths.bgf"
+    edit_operation_path = f"Results/Paths_{strategy}/F2/MUTAG/MUTAG_edit_paths_data.txt"
     # Use the directory containing the bgf as the dataset root so the processed file
     # will be written to <root>/processed/data.pt
     root_dir = dirname(bgf_path) or "."

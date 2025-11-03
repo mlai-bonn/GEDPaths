@@ -12,6 +12,8 @@ int main(int argc, const char * argv[]) {
     std::string processed_graph_path = "../Data/ProcessedGraphs/";
     // -edit_paths base argument for the path to store the edit paths
     std::string edit_path_output = "../Results/Paths/";
+    // path generation strategy
+    std::string path_generation_strategy = "Rnd_d-IsoN";
     // -method (default REFINE)
     std::string method = "F2";
 
@@ -24,6 +26,9 @@ int main(int argc, const char * argv[]) {
         }
         else if (std::string(argv[i]) == "-method") {
             method = argv[i+1];
+        }
+        else if (std::string(argv[i]) == "-path_generation_strategy") {
+            edit_path_output = argv[i+1];
         }
         // add help
         else if (std::string(argv[i]) == "-help") {
@@ -41,5 +46,15 @@ int main(int argc, const char * argv[]) {
         }
 
     }
+
+    // in edit_path_output search for Paths/ and replace this by Paths_<path_generation_strategy>/
+    size_t pos = edit_path_output.find("Paths/");
+    if (pos != std::string::npos) {
+        edit_path_output.replace(pos, 6, "Paths_" + path_generation_strategy + "/");
+    } else {
+        edit_path_output += "Paths_" + path_generation_strategy + "/";
+    }
+
+
     return analyze_edit_path_graphs(db, edit_path_output, method);
 }
