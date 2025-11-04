@@ -1,11 +1,17 @@
 from os.path import dirname
+import argparse
 from python_src.converter.torch_geometric_exporter import BGFInMemoryDataset
 
-if __name__ == "__main__":
-    strategy = "Rnd_d-IsoN"
-    strategy = "Rnd"
-    strategy = "i-E_d-IsoN_"
+
+def main(strategy: str) -> None:
+    """Convert a BGF file to a torch_geometric InMemoryDataset using the given strategy name.
+
+    The script expects the BGF file to be at: Results/Paths_{strategy}/F2/MUTAG/MUTAG_edit_paths.bgf
+    """
     bgf_path = f"Results/Paths_{strategy}/F2/MUTAG/MUTAG_edit_paths.bgf"
+    print(f"Using strategy: {strategy}")
+    print(f"Looking for BGF at: {bgf_path}")
+
     # Use the directory containing the bgf as the dataset root so the processed file
     # will be written to <root>/processed/data.pt
     root_dir = dirname(bgf_path) or "."
@@ -23,3 +29,20 @@ if __name__ == "__main__":
             print(f"Dataset length (graphs, inferred): {len(any_slice)}")
         else:
             print("Dataset length: unknown")
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Convert a BGF file to torch_geometric .pt using a generating-path strategy name"
+    )
+    parser.add_argument(
+        "-s",
+        "-path_strategy",
+        default="Rnd_d-IsoN",
+        help=(
+            "Generating path strategy name used inside Results/Paths_{strategy}/. "
+            "Default: 'i-E_d-IsoN_' (matches previous behavior)."
+        ),
+    )
+    args = parser.parse_args()
+    main(args.strategy)

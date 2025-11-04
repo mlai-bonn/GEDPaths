@@ -99,7 +99,7 @@ int main(const int argc, const char * argv[]) {
         else if (std::string(argv[i]) == "-ids_path") {
             graph_ids_path = argv[i+1];
         }
-        else if (std::string(argv[i]) == "-num_graphs") {
+        else if (std::string(argv[i]) == "-num_pairs") {
             num_pairs = std::stoi(argv[i+1]);
         }
         else if (std::string(argv[i]) == "-single_source") {

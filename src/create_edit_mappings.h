@@ -116,8 +116,6 @@ inline int create_edit_mappings(const std::string& db,
     GraphData<UDataGraph> graphs;
     LoadSaveGraphDatasets::LoadPreprocessedTUDortmundGraphData(db, processed_graph_path, graphs);
     std::vector<std::pair<INDEX, INDEX>> graph_ids;
-    // set up random device
-    auto gen = std::mt19937_64(seed);
         // If db_ged_mapping.bin already exists load it and look for existing graph ids
     // load mappings
     std::vector<GEDEvaluation<UDataGraph>> results;
@@ -146,6 +144,8 @@ inline int create_edit_mappings(const std::string& db,
 
     if (num_pairs > 0 && num_pairs <= graphs.graphData.size() * (graphs.graphData.size() - 1) / 2) {
         std::uniform_int_distribution<INDEX> dist(0, graphs.graphData.size() - 1);
+        // set up random device
+        auto gen = std::mt19937(seed);
         while (graph_ids.size() < num_pairs) {
             // get random integer between 0 and graphs.GraphData.size() - 1
             INDEX id1 = dist(gen);
