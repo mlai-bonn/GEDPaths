@@ -2,10 +2,10 @@ from os.path import dirname
 import argparse
 
 
-def main(strategy: str) -> None:
+def main(strategy: str, method: str = "F2", database: str = "MUTAG"):
     """Convert a BGF file to a torch_geometric InMemoryDataset using the given strategy name.
 
-    The script expects the BGF file to be at: Results/Paths_{strategy}/F2/MUTAG/MUTAG_edit_paths.bgf
+    The script expects the BGF file to be at: Results/Paths_{strategy}/{method}/{database}/{database}_edit_paths.bgf
     """
     # Ensure the project root is importable as a package root so `python_src` can be found
     import os
@@ -17,7 +17,7 @@ def main(strategy: str) -> None:
     # import the dataset wrapper lazily (avoids importing heavy deps on --help)
     from python_src.converter.torch_geometric_exporter import BGFInMemoryDataset
 
-    bgf_path = f"Results/Paths_{strategy}/F2/MUTAG/MUTAG_edit_paths.bgf"
+    bgf_path = f"Results/Paths_{strategy}/{method}/{database}/{database}_edit_paths.bgf"
     print(f"Using strategy: {strategy}")
     print(f"Looking for BGF at: {bgf_path}")
 
@@ -46,7 +46,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "-s",
-        "--strategy",
+        "--path_strategy",
         dest="strategy",
         default="Rnd_d-IsoN",
         help=(
@@ -54,5 +54,25 @@ if __name__ == "__main__":
             "Default: 'Rnd_d-IsoN'."
         ),
     )
+    parser.add_argument(
+        "-d",
+        "--db",
+        dest="database",
+        default="MUTAG",
+        help=(
+            "Database name used inside Results/Paths_{strategy}/F2/{database}/. "
+            "Default: 'MUTAG'."
+        ),
+    )
+    parser.add_argument(
+        "-m",
+        "--method",
+        dest="method",
+        default="F2",
+        help=(
+            "Method name used inside Results/Paths_{strategy}/{method}/{database}/. "
+            "Default: 'F2'."
+        ),
+    )
     args = parser.parse_args()
-    main(args.strategy)
+    main(args.strategy, args.method, args.database)

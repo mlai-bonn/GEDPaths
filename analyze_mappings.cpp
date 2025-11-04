@@ -18,16 +18,22 @@ int main(int argc, const char* argv[]) {
         std::string arg = argv[i];
         if (arg == "-db" || arg == "-data" || arg == "-dataset" || arg == "-database") {
             db = argv[i+1];
+            ++i;
         } else if (arg == "-processed") {
             processed_graph_path = argv[i+1];
+            ++i;
         } else if (arg == "-mappings") {
+            ++i;
             mappings_root = argv[i+1];
         } else if (arg == "-method") {
             method = argv[i+1];
+            ++i;
         } else if (arg == "-compare-method") {
             compare_method = argv[i+1];
+            ++i;
         } else if (arg == "-csv-out") {
             csv_out = argv[i+1];
+            ++i;
         } else if (arg == "-help") {
             std::cout << "analyze_mappings: load GED mappings and compare distances\n";
             std::cout << "Usage: " << argv[0] << " [-db NAME] [-method METHOD] [-compare-method OTHER_METHOD] [-mappings PATH] [-processed PATH] [-csv-out FILE]\n";

@@ -135,7 +135,7 @@ def graph_to_networkx_with_edge_features(data):
     return G, edge_labels
 
 
-def _draw_colored_edges(G, pos, edge_labels, op, ax, palette, edge_width=1.0):
+def _draw_colored_edges(G, pos, edge_labels, ax, palette, edge_width=1.0):
     """Draw edges using `palette`.
     - Draw base light gray edges first.
     - If an edge's label parses as an int, draw that edge thick and colored by palette[int % len(palette)].
@@ -209,7 +209,7 @@ def _draw_colored_edges(G, pos, edge_labels, op, ax, palette, edge_width=1.0):
 def plot_graph(data, title: Optional[str] = None, show_node_labels: bool = True, output: Optional[str] = None, color_nodes_by_label: bool = True):
     # Convert to networkx and prepare labels
     G, edge_labels = graph_to_networkx_with_edge_features(data)
-
+    standard_edge_width = 2.0
     # Determine node positions: if node features exist and are 2-d, use them
     pos = None
     if hasattr(data, 'x') and data.x is not None:
@@ -722,7 +722,7 @@ def plot_edit_path(graphs, edit_ops, output=None, highlight_colors=None, show_la
         nx.draw_networkx_edges(G, pos, width=edge_widths, edge_color=edge_colors, ax=ax)
         # draw edge colors/labels using helper (colors and optional labels)
         if edge_labels:
-            _draw_colored_edges(G, pos, edge_labels, parsed, ax, palette, edge_width=standard_edge_width)
+            _draw_colored_edges(G, pos, edge_labels, ax, palette, edge_width=standard_edge_width)
 
         # draw labels: inside labels (bold black) show node attributes; outside ids (bold red) show node indices
         if node_labels is not None and (not color_nodes_by_label):

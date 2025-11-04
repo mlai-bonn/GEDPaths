@@ -618,9 +618,28 @@ def write_tex_stacked_from_df(tex_path: str, df: pd.DataFrame, x_col: str, stack
 
 def main():
     parser = argparse.ArgumentParser(description='Plot edit path statistics CSVs')
-    parser.add_argument('directory', nargs='?', default='Results/Paths/F2/MUTAG/Evaluation',
+    # default directory used when user doesn't provide one explicitly
+    default_dir = 'Results/Paths/F2/MUTAG/Evaluation'
+    parser.add_argument('directory', nargs='?', default=default_dir,
                         help='Directory containing CSV files (Evaluation folder). Defaults to %(default)s')
-    parser.add_argument('--strategy', default="Rnd_d-IsoN"),
+
+    # mirror bgf_to_pt.py args so users can pass -s/-m/-d like the converter
+    parser.add_argument('-s', '--path_strategy', dest='strategy', default='Rnd_d-IsoN',
+                        help=(
+                            "Generating path strategy name used inside Results/Paths_{strategy}/. "
+                            "Default: 'Rnd_d-IsoN'."
+                        ))
+    parser.add_argument('-d', '--db', dest='database', default='MUTAG',
+                        help=(
+                            "Database name used inside Results/Paths_{strategy}/<method>/{database}/. "
+                            "Default: 'MUTAG'."
+                        ))
+    parser.add_argument('-m', '--method', dest='method', default='F2',
+                        help=(
+                            "Method name used inside Results/Paths_{strategy}/{method}/{database}/. "
+                            "Default: 'F2'."
+                        ))
+
     parser.add_argument('--save', dest='save', action='store_true', help='Save plots as PNGs (default)')
     parser.add_argument('--no-save', dest='save', action='store_false', help='Do not save plots')
     parser.set_defaults(save=True)
@@ -628,16 +647,18 @@ def main():
     parser.add_argument('--buckets', type=int, default=10, help='Number of buckets to aggregate positions into for bucketed plots (default: 10)')
     args = parser.parse_args()
 
-    directory = args.directory
+    # If the user left the directory positional argument as the default, construct it from the provided strategy/method/database
+    if args.directory == default_dir:
+        directory = os.path.join('Results', f'Paths_{args.strategy}', args.method, args.database, 'Evaluation')
+    else:
+        directory = args.directory
+        # If the user provided a directory that still contains 'Paths' and also provided a strategy,
+        # replace the generic 'Paths' with the strategy-specific folder to keep backward compatibility.
+        if args.strategy and 'Paths' in directory and 'Paths_' not in directory:
+            directory = directory.replace('Paths', f'Paths_{args.strategy}')
 
-    # replace Paths in the directory with Paths_strategy if strategy is specified
-    if args.strategy:
-        directory = directory.replace('Paths', f'Paths_{args.strategy}')
-
-    if not os.path.isdir(directory):
-        print(f"Directory not found: {directory}")
-        print("Try to run the analyze_edit_path_graphs.cpp first to generate the Evaluation folder with CSVs.")
-        sys.exit(1)
+    # expose args.strategy to existing code that used args.strategy variable name
+    # (rest of function uses 'directory' and 'args')
 
     # set python output directory as a sibling to the evaluation folder (same level as Evaluation)
     global python_output_dir
