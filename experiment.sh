@@ -21,14 +21,22 @@ fi
 # use the dataset as input parameter (default: MUTAG)
 dataset="${1:-MUTAG}"
 echo "Using dataset: $dataset"
+# use -recompile flag to recompile the C++ code (if there is no build folder also recompile)
+recompile="${2:-no}"
+if [ "$recompile" = "recompile" ] || [ ! -d "build" ]; then
+  echo "Recompiling the C++ code..."
+  rm -rf build
+  #compile the C++ code
+  mkdir build
+  cd build || exit
+  cmake .. && make
+fi
+
+
 
 
 # load the data (Mutagenicity dataset)
 python python_src/data_loader.py -db "$dataset"
-#compile the C++ code
-mkdir build
-cd build || exit
-#cmake .. && make
 # create the mappings for 5000 random pairs of graphs
 ./CreateMappings -db "$dataset" -num_pairs 5000 -method F2 -method_options threads 30
 # create the paths with different strategies
