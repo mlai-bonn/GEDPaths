@@ -28,18 +28,18 @@ python python_src/data_loader.py -db "$dataset"
 #compile the C++ code
 mkdir build
 cd build || exit
-cmake .. && make
+#cmake .. && make
 # create the mappings for 5000 random pairs of graphs
 ./CreateMappings -db "$dataset" -num_pairs 5000 -method F2 -method_options threads 30
 # create the paths with different strategies
-./CreatePaths -db "$dataset" -method F2 -path_strategy Random
+#./CreatePaths -db "$dataset" -method F2 -path_strategy Random
 ./CreatePaths -db "$dataset" -method F2 -path_strategy Random DeleteIsolatedNodes
-./CreatePaths -db "$dataset" -method F2 -path_strategy InsertEdges DeleteIsolatedNodes
-./CreatePaths -db "$dataset" -method F2 -path_strategy DeleteEdges DeleteIsolatedNodes
+#./CreatePaths -db "$dataset" -method F2 -path_strategy InsertEdges DeleteIsolatedNodes
+#./CreatePaths -db "$dataset" -method F2 -path_strategy DeleteEdges DeleteIsolatedNodes
 # convert the generated path graphs to pytorch-geometric format
-python ../python_src/converter/bgf_to_pt.py -db "$dataset" -method F2 -path_strategy Rnd
+#python ../python_src/converter/bgf_to_pt.py -db "$dataset" -method F2 -path_strategy Rnd
 python ../python_src/converter/bgf_to_pt.py -db "$dataset" -method F2 -path_strategy Rnd_d-IsoN
-python ../python_src/converter/bgf_to_pt.py -db "$dataset" -method F2 -path_strategy i-E_d-IsoN
-python ../python_src/converter/bgf_to_pt.py -db "$dataset" -method F2 -path_strategy d-E_d-IsoN
+#python ../python_src/converter/bgf_to_pt.py -db "$dataset" -method F2 -path_strategy i-E_d-IsoN
+#python ../python_src/converter/bgf_to_pt.py -db "$dataset" -method F2 -path_strategy d-E_d-IsoN
 
 

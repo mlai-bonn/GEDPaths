@@ -71,6 +71,28 @@ inline void fixInvalidMappings(std::vector<GEDEvaluation<UDataGraph>>& results,
                                ged::Options::GEDMethod ged_method,
                                const std::string& method_options) {
 
+    // manipulate the method options as errors seem to come from parallelization in F2/F1
+    std::string modified_method_options = method_options;
+    if (ged_method == ged::Options::GEDMethod::F2 || ged_method == ged::Options::GEDMethod::F1) {
+        // if --threads is in method_options with some number n, with k digits replace the number by 1 otherwise add --threads 1
+        if (modified_method_options.find("--threads") != std::string::npos) {
+            size_t pos = modified_method_options.find("--threads");
+            size_t end_of_threads = pos + 9; // length of "--threads"
+            // skip spaces
+            while (end_of_threads < modified_method_options.size() && modified_method_options[end_of_threads] == ' ') {
+                end_of_threads++;
+            }
+            // replace the number after --threads with 1
+            size_t start_of_number = end_of_threads;
+            while (end_of_threads < modified_method_options.size() && isdigit(modified_method_options[end_of_threads])) {
+                end_of_threads++;
+            }
+            modified_method_options.replace(start_of_number, end_of_threads - start_of_number, "1");
+        }
+        else {
+            modified_method_options += " --threads 1";
+        }
+    }
     // try to correct invalid mappings
     auto invalid_mappings = CheckResultsValidity(results);
     std::cout << "Found " << invalid_mappings.size() << " invalid mappings.\n";
@@ -84,16 +106,33 @@ inline void fixInvalidMappings(std::vector<GEDEvaluation<UDataGraph>>& results,
     for (const auto &id : invalid_mappings) {
         auto source_id = results[id].graph_ids.first;
         auto target_id = results[id].graph_ids.second;
-        auto fixed_result = create_edit_mappings_single(source_id, target_id, graphs, edit_cost, ged_method, method_options, false);
+        auto fixed_result = create_edit_mappings_single(source_id, target_id, graphs, edit_cost, ged_method, modified_method_options, true);
         if (CheckResultsValidity(std::vector<GEDEvaluation<UDataGraph>>{fixed_result}).empty()) {
             fixed_results.emplace_back(id, fixed_result);
             std::cout << "  Fixed mapping for result id " << id << " (Graph IDs: " << source_id << ", " << target_id << ")\n";
+        }
+        else {
+            // if F1 fails try F2 and vice versa
+            ged::Options::GEDMethod alternative_method = (ged_method == ged::Options::GEDMethod::F1) ? ged::Options::GEDMethod::F2 : ged::Options::GEDMethod::F1;
+            auto alternative_fixed_result = create_edit_mappings_single(source_id, target_id, graphs, edit_cost, alternative_method, modified_method_options, true);
+            if (CheckResultsValidity(std::vector<GEDEvaluation<UDataGraph>>{alternative_fixed_result}).empty()) {
+                fixed_results.emplace_back(id, alternative_fixed_result);
+                std::cout << "  Fixed mapping for result id " << id << " (Graph IDs: " << source_id << ", " << target_id << ") using alternative method.\n";
+            }
+            else {
+                std::cout << "Try manual fixing for result id " << id << " (Graph IDs: " << source_id << ", " << target_id << ")\n";
+                auto source_mapping = results[id].node_mapping.first;
+                auto target_mapping = results[id].node_mapping.second;
+                std::cout << "  Failed to fix mapping for result id " << id << " (Graph IDs: " << source_id << ", " << target_id << ")\n";
+            }
         }
     }
     // replace invalid results with fixed results
     for (auto &[id, result] : fixed_results) {
         results[id] = result;
     }
+    std::cout << "Finished recalculating invalid mappings.\n";
+    std::cout << "Total fixed mappings: " << fixed_results.size() << " of " << invalid_mappings.size() << "\n";
 }
 
 inline int create_edit_mappings(const std::string& db,
@@ -121,20 +160,49 @@ inline int create_edit_mappings(const std::string& db,
     std::vector<GEDEvaluation<UDataGraph>> results;
     std::string mapping_file =output_path + "/" + db + "/" + db + "_ged_mapping.bin";
     std::vector<std::pair<INDEX, INDEX>> existing_graph_ids;
+    std::string tmp_path = output_path + db + "/tmp/";
     if (std::filesystem::exists(mapping_file)) {
         BinaryToGEDResult(mapping_file, graphs, results);
         for (const auto& res : results) {
             existing_graph_ids.emplace_back(res.graph_ids);
         }
+        // add possible existing graph ids from the tmp folder
+        // Merge all mappings in tmp folder
+        std::vector<GEDEvaluation<UDataGraph>> tmp_results;
+        if (std::filesystem::exists(tmp_path) && !std::filesystem::is_empty(tmp_path)) {
+            MergeBinaries(tmp_path, db + "_", graphs, tmp_results);
+            // append new tmp_results
+            for (const auto& res : tmp_results) {
+                if (ranges::find(existing_graph_ids, res.graph_ids) == existing_graph_ids.end()) {
+                    results.emplace_back(res);
+                    existing_graph_ids.emplace_back(res.graph_ids);
+                }
+            }
+        }
+
         // sort existing graph ids
         ranges::sort(existing_graph_ids, [](const std::pair<INDEX, INDEX>& a, const std::pair<INDEX, INDEX>& b) {
             return a.first == b.first ? a.second < b.second : a.first < b.first;
+        });
+        // sort also the results in the same way
+        ranges::sort(results, [](const GEDEvaluation<UDataGraph>& a, const GEDEvaluation<UDataGraph>& b) {
+            return a.graph_ids.first == b.graph_ids.first ? a.graph_ids.second < b.graph_ids.second : a.graph_ids.first < b.graph_ids.first;
         });
         // fix invalid mappings
         fixInvalidMappings(results, graphs, edit_cost, ged_method, method_options);
         // save the updated results back to binary
         GEDResultToBinary(output_path + "/" + db + "/", results);
     }
+    else if (std::filesystem::exists(tmp_path) && !std::filesystem::is_empty(tmp_path)) {
+        //check whether there is a tmp folder with partial results (i.e., at least one file inside the folder)
+        MergeGEDResults(tmp_path, output_path + "/" + db + "/", db + "_", graphs);
+        // load merged results
+        BinaryToGEDResult(mapping_file, graphs, results);
+        for (const auto& res : results) {
+            existing_graph_ids.emplace_back(res.graph_ids);
+        }
+    }
+
 
     // If single_source and single_target are set, only compute and print that mapping
     if (single_source >= 0 && single_target >= 0) {

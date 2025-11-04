@@ -1,6 +1,5 @@
 from os.path import dirname
 import argparse
-from python_src.converter.torch_geometric_exporter import BGFInMemoryDataset
 
 
 def main(strategy: str) -> None:
@@ -8,6 +7,16 @@ def main(strategy: str) -> None:
 
     The script expects the BGF file to be at: Results/Paths_{strategy}/F2/MUTAG/MUTAG_edit_paths.bgf
     """
+    # Ensure the project root is importable as a package root so `python_src` can be found
+    import os
+    import sys
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+    if project_root not in sys.path:
+        sys.path.insert(0, project_root)
+
+    # import the dataset wrapper lazily (avoids importing heavy deps on --help)
+    from python_src.converter.torch_geometric_exporter import BGFInMemoryDataset
+
     bgf_path = f"Results/Paths_{strategy}/F2/MUTAG/MUTAG_edit_paths.bgf"
     print(f"Using strategy: {strategy}")
     print(f"Looking for BGF at: {bgf_path}")
@@ -37,11 +46,12 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "-s",
-        "-path_strategy",
+        "--strategy",
+        dest="strategy",
         default="Rnd_d-IsoN",
         help=(
             "Generating path strategy name used inside Results/Paths_{strategy}/. "
-            "Default: 'i-E_d-IsoN_' (matches previous behavior)."
+            "Default: 'Rnd_d-IsoN'."
         ),
     )
     args = parser.parse_args()
