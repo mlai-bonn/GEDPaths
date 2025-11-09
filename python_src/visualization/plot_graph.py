@@ -29,8 +29,22 @@ class _LoadedInMemoryDataset(InMemoryDataset):
         # <root>/processed/data.pt, but we keep it flexible.
         root = os.path.dirname(os.path.dirname(self._processed_path))
         super().__init__(root)
-        # load the processed (data, slices) tuple saved by torch.save
-        self.data, self.slices = torch.load(self._processed_path)
+        # load the processed file in a way compatible with multiple PyG versions
+        out = torch.load(self._processed_path)
+        if isinstance(out, tuple):
+            if len(out) == 2:
+                self.data, self.slices = out
+                self.sizes = {}
+            elif len(out) == 3:
+                self.data, self.slices, self.sizes = out
+            else:
+                # len >= 4: (data, slices, sizes, data_cls, ...)
+                self.data, self.slices, self.sizes = out[0], out[1], out[2]
+        else:
+            # Fallback: single-object save
+            self.data = out
+            self.slices = {}
+            self.sizes = {}
 
     @property
     def raw_file_names(self):

@@ -48,7 +48,7 @@ if __name__ == "__main__":
         "-s",
         "--path_strategy",
         dest="strategy",
-        default="Rnd_d-IsoN",
+        default="i-E_d-IsoN",
         help=(
             "Generating path strategy name used inside Results/Paths_{strategy}/. "
             "Default: 'Rnd_d-IsoN'."
