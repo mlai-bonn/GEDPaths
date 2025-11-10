@@ -30,7 +30,7 @@ class _LoadedInMemoryDataset(InMemoryDataset):
         root = os.path.dirname(os.path.dirname(self._processed_path))
         super().__init__(root)
         # load the processed file in a way compatible with multiple PyG versions
-        out = torch.load(self._processed_path)
+        out = torch.load(self._processed_path, weights_only=False)
         if isinstance(out, tuple):
             if len(out) == 2:
                 self.data, self.slices = out
@@ -91,12 +91,13 @@ def find_index_by_bgf_name(processed_pt: str, bgf_name: str) -> int:
     raise ValueError(f"No graph with bgf_name '{bgf_name}' found in {processed_pt}")
 
 
-def graph_to_networkx_with_edge_features(data):
+def graph_to_networkx_with_edge_features(data, one_hot_encoding: bool = True):
     """Convert a torch_geometric.data.Data to a networkx graph and
     prepare edge labels from edge_attr. Returns (G, edge_labels).
     """
     # ensure edge_attr exists; to_networkx will attach attributes
-    G = to_networkx(data, node_attrs=None, edge_attrs=['edge_attr'])
+    G = to_networkx(data, node_attrs=['primary_node_labels'], edge_attrs=['edge_attributes'], to_undirected=True)
+
     # Force undirected graph semantics for plotting/analysis
     try:
         G = nx.Graph(G)
@@ -107,11 +108,13 @@ def graph_to_networkx_with_edge_features(data):
     # Build a labels dict for matplotlib drawing
     edge_labels = {}
     for u, v, d in G.edges(data=True):
-        attr = d.get('edge_attr', None)
+        attr = d.get('edge_attributes', None)
         if attr is None:
             edge_labels[(u, v)] = ''
         else:
             try:
+                if one_hot_encoding:
+                    attr = torch.argmax(torch.tensor(attr)).item()
                 # If it's a torch tensor
                 if hasattr(attr, 'detach'):
                     a = attr.detach().cpu().numpy()
@@ -593,11 +596,11 @@ def plot_edit_path(graphs, edit_ops, output=None, highlight_colors=None, show_la
         node_labels = None
         if show_node_labels:
             try:
-                if hasattr(data, 'x') and data.x is not None:
-                    x = data.x
+                if hasattr(data, 'primary_node_labels') and data.primary_node_labels is not None:
+                    x = data.primary_node_labels
                     # handle 1-D or 2-D numeric arrays -> only show the attribute values inside the node
                     if x.ndim == 1:
-                        node_labels = {i: f"{float(x[i]):.3g}" for i in range(x.shape[0])}
+                        node_labels = {i: int(x[i]) for i in range(x.shape[0])}
                     elif x.ndim == 2 and x.shape[1] == 1:
                         node_labels = {i: f"{float(x[i,0]):.3g}" for i in range(x.shape[0])}
                     elif x.ndim == 2 and x.shape[1] <= 4:
@@ -686,7 +689,7 @@ def plot_edit_path(graphs, edit_ops, output=None, highlight_colors=None, show_la
                     colored_legend = ('categorical', legend_items)
                 elif kind == 'categorical':
                     mapping = color_mapping[1]; pal = color_mapping[2]
-                    colors_hex = [mapping.get(v, '#cccccc') for v in vals]
+                    colors_hex = [palette_local[v] for v in vals]
                     nx.draw_networkx_nodes(G, pos, nodelist=node_order, node_color=colors_hex, node_size=standard_node_size, ax=ax)
                     legend_items = [(lbl, mapping[lbl]) for lbl in mapping.keys()]
                     colored_legend = ('categorical', legend_items)

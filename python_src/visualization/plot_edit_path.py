@@ -21,8 +21,8 @@ def main():
     parser.add_argument('--no-save', dest='save', action='store_false', help='Do not save generated plot')
     parser.set_defaults(save=True)
     parser.add_argument('--show', action='store_true', help='Display plot interactively')
-    parser.add_argument('--start', type=int, default=3, help='Start index for paths (default: 3)')
-    parser.add_argument('--end', type=int, default=77, help='End index for paths (default: 77)')
+    parser.add_argument('--start', type=int, default=0, help='Start index for paths (default: 3)')
+    parser.add_argument('--end', type=int, default=55, help='End index for paths (default: 77)')
     args = parser.parse_args()
 
     # Determine directory: if positional default was used, build from strategy/method/database
