@@ -266,7 +266,20 @@ inline int create_edit_mappings(const std::string& db,
     // if there are not enough existing pairs (computation has been interrupted) and num_pairs is set, only generate that many pairs
     std::vector<std::pair<INDEX, INDEX>> next_graph_pairs;
     // iterate through the graph pairs and add those to next_graph_pairs that are not in existing_pairs
-    for (const auto& pair : graph_pairs) {
+    // get the last index in graph_pairs that is bigger than an entry occuring in existing_pairs (to avoid unnecessary iterations)
+    size_t max_index = 0;
+    for (const auto& pair : existing_pairs) {
+        auto it = ranges::find(graph_pairs, pair);
+        if (it != graph_pairs.end()) {
+            size_t index = std::distance(graph_pairs.begin(), it);
+            if (index > max_index) {
+                max_index = index;
+            }
+        }
+    }
+    // iterate over graph_pairs starting with max_index + 1
+    for (size_t index = max_index + 1; index < graph_pairs.size(); ++index) {
+        const auto& pair = graph_pairs[index];
         if (ranges::find(existing_pairs, pair) == existing_pairs.end()) {
             next_graph_pairs.emplace_back(pair);
         }
