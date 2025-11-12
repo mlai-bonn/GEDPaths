@@ -227,6 +227,8 @@ inline int create_edit_mappings(const std::string& db,
     auto results = std::vector<GEDEvaluation<UDataGraph>>{};
     get_existing_mappings(output_path, db, graphs, existing_pairs, results);
     fixInvalidMappings(results, graphs, edit_cost, ged_method, method_options);
+    // save the updated results back to binary
+    GEDResultToBinary(output_path + "/" + db + "/", results);
 
 
         // If db_ged_mapping.bin already exists load it and look for existing graph ids
