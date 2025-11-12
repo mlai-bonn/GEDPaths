@@ -5,7 +5,6 @@
 set -euo pipefail
 
 # Defaults
-DB_NAMES="MUTAG Mutagenicity NCI1 NCI109 DHFR PTC_FR PTC_FM PTC_MR PTC_MM"
 DB_NAME="MUTAG"
 VENV_PATH=".venv"
 RECOMPILE="no"
@@ -124,7 +123,7 @@ fi
 # Run pipeline
 
 # download all datasets if not already present
-python python_src/data_loader.py -db "${DB_NAMES}"
+python python_src/data_loader.py -db "${DB_NAME}"
 
 # create the mappings for 5000 random pairs of graphs
 if [[ "${ONLY_EVAL}" == "yes" ]]; then
