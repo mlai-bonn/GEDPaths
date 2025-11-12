@@ -132,7 +132,7 @@ if [[ "${ONLY_EVAL}" == "yes" ]]; then
 else
   if [[ -x "build/CreateMappings" ]]; then
     cd build || exit 1
-    ./CreateMappings -db "${DB_NAME}" -num_pairs 5000 -method F2 -method_options threads 30
+    ./CreateMappings -db "${DB_NAME}" -num_pairs 5000 -method F2 -method_options threads 30 time-limit 10
     cd .. || exit 1
   else
     echo "Error: build/CreateMappings not found or not executable. Did the build succeed?"
