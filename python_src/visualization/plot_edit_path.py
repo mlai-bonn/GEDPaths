@@ -1,7 +1,10 @@
 import os
-import torch
-from torch_geometric.data import InMemoryDataset
-from plot_graph import plot_edit_path, find_processed_pt
+try:
+    # when executed as module/package
+    from .visualization_functions import plot_edit_path, find_processed_pt
+except Exception:
+    # when executed directly
+    from visualization_functions import plot_edit_path, find_processed_pt
 from python_src.converter.GEDPathsInMemory import GEDPathsInMemoryDataset
 import argparse
 
@@ -11,8 +14,8 @@ def main():
     default_dir = 'Results/Paths/F2/MUTAG'
     parser.add_argument('directory', nargs='?', default=default_dir,
                         help='Root directory for a specific Results/Paths_{strategy}/{method}/{database} (default: %(default)s)')
-    parser.add_argument('-s', '--path_strategy', dest='strategy', default='Rnd_d-IsoN',
-                        help="Generating path strategy name used inside Results/Paths_{strategy}/. Default: 'Rnd_d-IsoN'.")
+    parser.add_argument('-s', '--path_strategy', dest='strategy', default='i-E_d-IsoN',
+                        help="Generating path strategy name used inside Results/Paths_{strategy}/. Default: 'i-E_d-IsoN'.")
     parser.add_argument('-d', '--db', dest='database', default='MUTAG',
                         help="Database name used inside Results/Paths_{strategy}/{method}/{database}/. Default: 'MUTAG'.")
     parser.add_argument('-m', '--method', dest='method', default='F2',
@@ -23,6 +26,12 @@ def main():
     parser.add_argument('--show', action='store_true', help='Display plot interactively')
     parser.add_argument('--start', type=int, default=0, help='Start index for paths (default: 3)')
     parser.add_argument('--end', type=int, default=55, help='End index for paths (default: 77)')
+    parser.add_argument('--node-size', dest='node_size', type=int, default=200,
+                        help='Default node marker size for plots (default: %(default)s)')
+    parser.add_argument('--edge-width', dest='edge_width', type=float, default=1.0,
+                        help='Default edge width for highlighted edges/text (default: %(default)s)')
+    parser.add_argument('--red-font-size', dest='red_font_size', type=int, default=20,
+                        help='Font size for red node id labels (default: %(default)s)')
     args = parser.parse_args()
 
     # Determine directory: if positional default was used, build from strategy/method/database
@@ -55,8 +64,27 @@ def main():
         edit_operations.append(op.operation["raw"])  # extract raw dict
 
     out_file = os.path.join(output_path, f"edit_path_{start}_{end}.png")
-    plot_edit_path(path_graphs, edit_operations, output=out_file)
-    print(f"Edit path plot saved to {out_file}")
+    # Save combined subplot figure for the whole edit path
+    if args.save:
+        plot_edit_path(path_graphs, edit_operations, output=out_file, node_size=args.node_size, edge_width=args.edge_width, red_font_size=args.red_font_size)
+        print(f"Edit path plot saved to {out_file}")
+    else:
+        plot_edit_path(path_graphs, edit_operations, output=None, node_size=args.node_size, edge_width=args.edge_width, red_font_size=args.red_font_size)
+
+    # Additionally save individual plots — one file per graph in the path
+    # named edit_path_{start}_{end}_step_{i}.png
+    if args.save:
+        for i, g in enumerate(path_graphs):
+            # corresponding op if available
+            op = edit_operations[i] if i < len(edit_operations) else None
+            # Provide a filename prefix WITHOUT the '_step' suffix; the plotting
+            single_out_prefix = os.path.join(output_path, f"edit_path_{start}_{end}_step_{i}")
+            # plot single-step graph and save to file (plot_edit_path will add the step index)
+            try:
+                plot_edit_path([g], [op], output=single_out_prefix, node_size=args.node_size, edge_width=args.edge_width, red_font_size=args.red_font_size, one_fig_per_step=True)
+                print(f"Saved single-step plot for step {i} (prefix: {single_out_prefix})")
+            except Exception as e:
+                print(f"Failed to save single-step plot for step {i}: {e}")
 
 
 if __name__ == '__main__':
