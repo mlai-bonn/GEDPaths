@@ -27,7 +27,7 @@ def wl_analysis(dataset):
 
 def main():
     db_name = "Mutagenicity"
-    strategy = "Rnd"
+    strategy = "d-E_d-IsoN"
     bgf_path = f"Results/Paths_{strategy}/F2/{db_name}/{db_name}_edit_paths.bgf"
     edit_operation_path = f"Results/Paths_{strategy}/F2/{db_name}/{db_name}_edit_paths_data.txt"
     # Use the directory containing the bgf as the dataset root so the processed file
